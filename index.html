@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeQuest</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%23414140%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="vendor/MarkerCluster.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="login.css">
+</head>
+<body>
+<div id="login" class="login">
+  <form id="loginForm" class="login-card" autocomplete="on">
+    <div class="login-brand">HomeQuest</div>
+    <p class="login-sub" id="loginWhen">&nbsp;</p>
+    <label>Password
+      <input id="loginPw" type="password" autocomplete="current-password" required>
+    </label>
+    <label>GitHub key <span>to save the shortlist · only needed once per laptop</span>
+      <input id="loginToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+    </label>
+    <label class="login-check"><input id="loginRemember" type="checkbox" checked> Remember me on this laptop</label>
+    <button id="loginGo" type="submit">Open</button>
+    <p id="loginErr" class="login-err" role="alert"></p>
+    <p class="login-fine">Listings are stored scrambled. Your password unlocks them here in the browser and is never sent anywhere.</p>
+  </form>
+</div>
+
+
+<nav class="topnav" aria-label="Top navigation">
+  <button type="button" id="btnShortlist" class="btn btn-toggle" aria-pressed="true">★ Shortlist</button>
+  <strong class="brand">HomeQuest</strong>
+
+  <div class="search">
+    <label for="search" class="sr-only">Search condo, street or MRT</label>
+    <input id="search" type="search" placeholder="Search condo, street or MRT" autocomplete="off">
+    <ul id="searchResults" class="pop search-results" hidden></ul>
+  </div>
+
+  <div class="filter">
+    <button type="button" class="btn" data-pop="popMore" aria-expanded="false">Filters ▾</button>
+    <div id="popMore" class="pop fpanel wide" hidden>
+      <div class="ftop"><div>
+      <h4>Price</h4>
+      <div class="frow"><select id="priceMin" aria-label="Lowest price"></select><span>–</span><select id="priceMax" aria-label="Highest price"></select></div>
+      <h4>Quick picks</h4>
+      <div class="fchips" data-quick="price"><button type="button" data-min="0" data-max="1200000">Under $1.2M</button><button type="button" data-min="1200000" data-max="1600000">$1.2M – $1.6M</button><button type="button" data-min="1600000" data-max="2000000">$1.6M – $2M</button><button type="button" data-min="2000000" data-max="2500000">$2M – $2.5M</button></div>
+      </div><div>
+      <h4>Bedrooms <span>tap one or more</span></h4>
+      <div class="fchips" data-f="beds"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3</button><button type="button" data-v="4">4</button><button type="button" data-v="5">5+</button></div>
+      <h4>Size (sqft)</h4>
+      <div class="frow"><select id="sizeMin" aria-label="Smallest size"></select><span>–</span><select id="sizeMax" aria-label="Biggest size"></select></div>
+      <h4>Floor level <span>99.co only</span></h4>
+      <div class="fchips" data-f="floor"><button type="button" data-v="Ground">Ground</button><button type="button" data-v="Low">Low</button><button type="button" data-v="Mid">Mid</button><button type="button" data-v="High">High</button><button type="button" data-v="Top">Top</button><button type="button" data-v="Penthouse">Penthouse</button><button type="button" data-v="none">Not stated</button></div>
+      </div></div>
+      <div class="fcols"><div>
+        <h4>Property type</h4>
+        <div class="fchips" data-f="types"><button type="button" data-v="Condo">Condo</button><button type="button" data-v="Apartment">Apartment</button><button type="button" data-v="EC">Executive Condo</button></div>
+        <h4>Tenure</h4>
+        <div class="fchips" data-f="tenure"><button type="button" data-v="free">Freehold</button><button type="button" data-v="999">999-year</button><button type="button" data-v="99">99-year</button></div>
+        <h4>Lease left <span>99-year only</span></h4>
+        <div class="fchips" data-f="lease" data-single><button type="button" data-v="60">60+</button><button type="button" data-v="70">70+</button><button type="button" data-v="80">80+</button><button type="button" data-v="90">90+ yrs</button></div>
+        <h4>Age of building</h4>
+        <div class="fchips" data-f="age"><button type="button" data-v="new">New ≤ 5 yrs</button><button type="button" data-v="5">5–10</button><button type="button" data-v="10">10–20</button><button type="button" data-v="20">20+</button></div>
+        <h4>Price per sqft</h4>
+        <div class="frow"><select id="psfMin" aria-label="Lowest price per sqft"></select><span>–</span><select id="psfMax" aria-label="Highest price per sqft"></select></div>
+      </div><div>
+        <h4>Bathrooms</h4>
+        <div class="fchips" data-f="baths"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3+</button></div>
+        <h4>Walk to MRT</h4>
+        <div class="fchips" data-f="mrt" data-single><button type="button" data-v="5">≤ 5 min</button><button type="button" data-v="10">≤ 10 min</button><button type="button" data-v="15">≤ 15 min</button></div>
+        <h4>Renting level <span>URA rentals ÷ units</span></h4>
+        <div class="fchips" data-f="rent"><button type="button" data-v="low">Mostly owners</button><button type="button" data-v="mid">Mixed</button><button type="button" data-v="high">Rental-heavy</button></div>
+        <span class="hint">Mostly owners = under 8% of units rented out a year · Rental-heavy = 20%+</span>
+        <h4>Region <span>by district (approx.)</span></h4>
+        <div class="fchips" data-f="region"><button type="button" data-v="CCR">CCR</button><button type="button" data-v="RCR">RCR</button><button type="button" data-v="OCR">OCR</button></div>
+        <div class="fchips" data-f="districts" id="districtChips"></div>
+        <h4>Listed <span>first seen by the robot</span></h4>
+        <div class="fchips" data-f="listed" data-single><button type="button" data-v="7">Last 7 days</button><button type="button" data-v="30">Last 30 days</button></div>
+        <h4>Other</h4>
+        <div class="fchips" data-f="other"><button type="button" data-v="review">Has Stacked review</button></div>
+      </div></div>
+      <div class="ffoot"><button type="button" class="link-btn" data-clear="all">Reset all</button><button type="button" class="fshow">Show</button></div>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <span id="count" class="meta">Loading…</span>
+  <span id="status" class="meta soon">URA · OneMap · LTA · data.gov.sg</span>
+  <button type="button" class="btn" disabled title="Coming in step 2">Settings</button>
+</nav>
+
+<main class="map-wrap left-open">
+  <div id="map" aria-label="Map split into URA planning areas"></div>
+
+  <div id="peek" class="peek" hidden></div>
+
+  <aside id="shortlist" class="card card-left open" aria-label="Shortlist">
+    <div class="card-head">
+      <span class="eyebrow">Shortlist (<span id="shortCount">0</span>)</span>
+      <button type="button" id="hideShortlist" class="icon-btn" aria-label="Hide shortlist">‹</button>
+    </div>
+    <div id="shortTools" class="short-tools" hidden>
+      <label for="shortSearch" class="sr-only">Search the shortlist</label>
+      <input id="shortSearch" type="search" placeholder="Search shortlist" autocomplete="off">
+      <div class="short-selects">
+        <label class="sr-only" for="shortArea">Area</label>
+        <select id="shortArea"><option value="">All areas</option></select>
+        <label class="sr-only" for="shortBeds">Beds</label>
+        <select id="shortBeds"><option value="0">Any beds</option><option value="2">2 beds</option><option value="3">3 beds</option><option value="4">4+ beds</option></select>
+        <label class="sr-only" for="shortSort">Sort</label>
+        <select id="shortSort"><option value="added">Newest added</option><option value="score">Best score</option><option value="priceUp">Price: low to high</option><option value="priceDown">Price: high to low</option><option value="name">Name A–Z</option></select>
+      </div>
+    </div>
+    <div id="shortItems" class="card-body"></div>
+  </aside>
+
+  <aside id="detail" class="card card-right" aria-label="Details" aria-hidden="true"></aside>
+</main>
+
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/leaflet.markercluster.js"></script>
+<script src="login.js"></script>
+</body>
+</html>
