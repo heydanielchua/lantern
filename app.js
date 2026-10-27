@@ -16,7 +16,7 @@
     filters: { min: 0, max: 0, sizeMin: 0, sizeMax: 0, psfMin: 0, psfMax: 0, beds: [], floor: [], types: [], tenure: [], lease: [], age: [], baths: [],
       mrt: [], rent: [], region: [], districts: [], listed: [], other: [] }
   };
-  var map, areaLayer, pinLayer, labelLayer;
+  var map, areaLayer, pinLayer, labelLayer, selLayer;
   var markers = {};
 
   // ---- small helpers ----------------------------------------------------------
@@ -553,6 +553,8 @@
 
   function drawPins() {
     if (pinLayer) map.removeLayer(pinLayer);
+    if (!selLayer) selLayer = L.layerGroup().addTo(map);
+    selLayer.clearLayers();
     markers = {};
     pinLayer = L.markerClusterGroup({
       showCoverageOnHover: false, maxClusterRadius: 45, disableClusteringAtZoom: 17,
@@ -572,11 +574,21 @@
       pinLayer.addLayer(m);
     });
     map.addLayer(pinLayer);
+    if (S.panel && S.panel.condo) placePin(S.panel.condo);
     pinLayer.on('animationend', declutter);
     declutter();
   }
 
-  function refreshPin(key) { if (key && markers[key]) { markers[key].setIcon(pinIcon(key)); declutter(); } }
+  function refreshPin(key) { if (key && markers[key]) { markers[key].setIcon(pinIcon(key)); placePin(key); declutter(); } }
+
+  // The open condo's pin sits on its own layer, so it's never folded into a number bubble (fixed 27 Oct)
+  function placePin(key) {
+    var m = markers[key];
+    if (!m || !selLayer) return;
+    var sel = S.panel && S.panel.condo === key;
+    if (sel && !selLayer.hasLayer(m)) { pinLayer.removeLayer(m); selLayer.addLayer(m); m.setZIndexOffset(1000); }
+    else if (!sel && selLayer.hasLayer(m)) { selLayer.removeLayer(m); m.setZIndexOffset(0); pinLayer.addLayer(m); }
+  }
 
   // Name tags that would cover one already shown are hidden (hovering the pin still shows it).
   // Order: the open condo, then shortlisted ones, then condos with the most listings.
@@ -1671,13 +1683,25 @@
       if (v.sort === 'score') return scoreOf(b) - scoreOf(a);
       return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || '');
     });
-    $('shortItems').innerHTML = items.length ? items.map(function (k) {
+    var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; });
+    $('shortItems').innerHTML = (items.length ? items.map(function (k) {
       var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
       var on = S.panel && S.panel.condo === k;
       return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
         '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small></span>' +
         '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') + scoreTag(c) + '</span></span></button>';
-    }).join('') : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>';
+    }).join('') : (gone.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
+      gone.map(function (k) {      // every unit was sold / taken down since: kept, greyed, until you remove it
+        var g = S.gone[k];
+        return '<div class="list-item gone"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
+          '<span><strong>' + esc(g.name) + '</strong><small>No longer listed · last seen ' + esc(shortDate(g.seen)) + '</small></span>' +
+          '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
+      }).join('');
+    $('shortCount').textContent = all.length + gone.length;
+  }
+  function shortDate(d) {
+    var t = d ? new Date(d + 'T00:00:00') : null;
+    return t && !isNaN(t) ? t.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : 'earlier';
   }
 
   function setupShortlistTools() {
@@ -1910,11 +1934,21 @@
       if (e.target.id === 'areaSort' && S.panel) { S.panel.sort = e.target.value; $('areaList').innerHTML = areaCondoList(S.panel.area); }
     });
     $('shortItems').addEventListener('click', function (e) {
+      var u = e.target.closest('button[data-unstar]');
+      if (u) return toggleShort(u.dataset.unstar);           // a condo with nothing for sale any more
       var b = e.target.closest('button[data-condo]');
       if (b) openCondo(b.dataset.condo, { fly: true });
     });
     Promise.all([api('/api/data'), api('/api/areas'), api('/api/shortlist')]).then(function (r) {
-      S.listings = r[0].listings; S.meta = r[0].meta; S.ura = r[0].ura || {}; S.rent = r[0].rent || {}; S.mcst = r[0].mcst || {}; S.nearby = r[0].nearby || {}; S.places = r[0].places || {};
+      // listings the newest full robot run didn't see are sold / taken down: hidden (kept only to label old shortlist items)
+      S.listings = r[0].listings.filter(function (l) { return !l.gone; });
+      S.gone = {};
+      r[0].listings.forEach(function (l) {
+        if (!l.gone) return;
+        var g = S.gone[l.condo] || (S.gone[l.condo] = { name: l.name, district: l.district, seen: '' });
+        if ((l.scrapedOn || '') > g.seen) g.seen = l.scrapedOn || '';
+      });
+      S.meta = r[0].meta; S.ura = r[0].ura || {}; S.rent = r[0].rent || {}; S.mcst = r[0].mcst || {}; S.nearby = r[0].nearby || {}; S.places = r[0].places || {};
       (r[2] || []).forEach(function (i) { S.shortlist.push(i.key); S.shortAdded[i.key] = i.added; });
       buildCondos();
       drawAreas(r[1]);

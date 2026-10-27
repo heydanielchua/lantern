@@ -52,7 +52,14 @@
       body: body ? JSON.stringify(body) : undefined
     });
   }
-  var shortSha = null;
+  var shortSha = null, shortBase = null;     // shortBase = the list as last read/saved (for merging)
+  function mergeLists(mine, theirs, base) {   // same 3-way merge as the Mac (lantern.merge)
+    var bk = {}, mk = {}, out = [], have = {};
+    base.forEach(function (i) { bk[i.key] = 1; }); mine.forEach(function (i) { mk[i.key] = 1; });
+    theirs.forEach(function (i) { if (!(bk[i.key] && !mk[i.key])) { out.push(i); have[i.key] = 1; } });
+    mine.forEach(function (i) { if (!bk[i.key] && !have[i.key]) out.push(i); });
+    return out;
+  }
   function readShortlist() {
     if (!TOKEN) {     // read-only: the published copy (can be a few minutes behind)
       return fetch('shortlist.bin?t=' + Date.now(), { cache: 'no-store' })
@@ -61,7 +68,8 @@
     return gh('GET').then(function (r) {
       if (r.status === 404) { shortSha = null; return []; }
       if (!r.ok) throw new Error('GitHub said ' + r.status);
-      return r.json().then(function (j) { shortSha = j.sha; return open(unb64(j.content.replace(/\s/g, '')).buffer); });
+      return r.json().then(function (j) { shortSha = j.sha; return open(unb64(j.content.replace(/\s/g, '')).buffer); })
+        .then(function (list) { shortBase = list; return list; });
     });
   }
   function saveShortlist(items, retry) {
@@ -71,9 +79,14 @@
       if (shortSha) body.sha = shortSha;
       return gh('PUT', body);
     }).then(function (r) {
-      if (r.ok) return r.json().then(function (j) { shortSha = j.content.sha; notice(''); return items; });
-      if ((r.status === 409 || r.status === 422) && !retry) {      // changed elsewhere (e.g. on the Mac): get the latest, save again
-        return gh('GET').then(function (g) { return g.ok ? g.json() : {}; }).then(function (j) { shortSha = j.sha || null; return saveShortlist(items, true); });
+      if (r.ok) return r.json().then(function (j) { shortSha = j.content.sha; shortBase = items; if (!retry) notice(''); return items; });
+      if ((r.status === 409 || r.status === 422) && !retry) {      // changed elsewhere (e.g. on the Mac): merge with the latest, save again
+        var base = shortBase || [];
+        return readShortlist().then(function (theirs) {
+          var merged = mergeLists(items, theirs, base);
+          if (merged.length !== items.length) notice('Merged with changes made on another laptop — refresh to see them.');
+          return saveShortlist(merged, true);
+        });
       }
       if (r.status === 401 || r.status === 403) notice('GitHub refused the key — check it can write to ' + CFG.repo + '.');
       else notice('Couldn\'t save the shortlist to GitHub (' + r.status + '). Try again in a moment.');
