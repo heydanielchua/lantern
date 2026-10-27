@@ -53,6 +53,12 @@
   }
   function isFreehold(t) { return /freehold/i.test(t || '') || /^9\d\d-year/.test(t || ''); }
   function bedsText(b) { return b == null ? '—' : (b === 0 ? 'Studio' : b + ' bed'); }
+  // Phone layout (27 Oct): cards slide up from the bottom, so the map keeps the top part of the screen free
+  function phone() { return window.matchMedia('(max-width: 700px)').matches; }
+  function cardRoom(opts) {
+    if (phone()) { opts.paddingTopLeft = [10, 50]; opts.paddingBottomRight = [10, Math.round(window.innerHeight * 0.62)]; }
+    return opts;
+  }
   function soon(text) { return '<span class="soon-text">' + esc(text || 'coming soon') + '</span>'; }
   function api(path, opts) {         // online copy (Lantern): login.js answers instead of the Mac mini's server
     if (window.HQ_API) return window.HQ_API(path, opts);
@@ -98,6 +104,7 @@
     if (f.districts.length && f.districts.indexOf(l.district) < 0) return false;
     if (f.listed.length && daysAgo(l.firstSeen) > +f.listed[0]) return false;
     if (f.other.indexOf('review') >= 0 && !l.reviewUrl) return false;
+    if (f.other.indexOf('drop') >= 0 && !(l.wasPrice && l.price < l.wasPrice)) return false;
     return true;
   }
 
@@ -489,6 +496,10 @@
         '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a> © contributors | ' +
         '<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener">Singapore Land Authority</a>'
     }).addTo(map);
+    // OneMap draws an "INSET · Not to scale" box into its zoomed-out pictures (open sea south-east of Changi): paint over it in
+    // sea colour, inside the picture layer so it gets the same grey filter (style.css .leaflet-tile-pane)
+    map.createPane('seaCover', map.getPane('tilePane')).style.zIndex = 2;
+    L.rectangle([[1.128, 103.952], [1.252, 104.115]], { pane: 'seaCover', stroke: false, fillColor: '#d4d4d4', fillOpacity: 1, interactive: false }).addTo(map);
     map.on('click', closePanel);
     map.on('movestart', hidePeek);
     map.on('zoomend', zoomClass);
@@ -689,6 +700,7 @@
   function openArea(id, tab) {
     var prev = S.panel && S.panel.condo;
     S.panel = { type: 'area', area: id, tab: tab || 'summary', q: '', sort: 'count' };
+    if (phone()) setLeft(false);
     refreshPin(prev);
     renderPanel();
     restyle();
@@ -700,10 +712,11 @@
     if (!c) return;
     var prev = S.panel && S.panel.condo;
     S.panel = { type: 'condo', condo: key, area: c.area, tab: 'summary', allSales: false, allRent: false };
+    if (phone()) setLeft(false);
     refreshPin(prev);
     refreshPin(key);
     // zoom so the 1 km ring of places fits beside the card
-    if (c.lat != null) map.flyToBounds(L.latLng(c.lat, c.lng).toBounds(2300), { paddingTopLeft: [20, 70], paddingBottomRight: [470, 20], maxZoom: 16, duration: 0.6 });
+    if (c.lat != null) map.flyToBounds(L.latLng(c.lat, c.lng).toBounds(2300), cardRoom({ paddingTopLeft: [20, 70], paddingBottomRight: [470, 20], maxZoom: 16, duration: 0.6 }));
     hidePeek();
     renderPanel();
     restyle();
@@ -892,10 +905,8 @@
       var g = growth(ch.condoHomes);
       rows.push('<div><span>Condo homes</span><span><strong>' + (g > 0 ? '▲ ' : (g < 0 ? '▼ ' : '')) + Math.abs(g) + '%</strong> since 2010</span></div>');
     }
-    rows.push('<div><span>New condos coming</span><span>' + soon('coming soon') + '</span></div>');
-    rows.push('<div><span>Future MRT</span><span>' + soon('coming soon') + '</span></div>');
     return '<div class="box"><div class="head-row"><span class="eyebrow">Future growth' +
-      tip('Prices = typical URA $psf, first vs last full year (Growing = 3% a year or more). Condo homes = households living in condos (Census 2010 → 2020). New condos and future MRT lines will come from URA and LTA.') + '</span>' +
+      tip('Prices = typical URA $psf, first vs last full year (Growing = 3% a year or more). Condo homes = households living in condos (Census 2010 → 2020).') + '</span>' +
       '<button type="button" class="link-btn" data-tab="growth">Growth tab →</button></div><div class="rows">' + rows.join('') + '</div></div>';
   }
 
@@ -1025,12 +1036,10 @@
         '<ul class="plain"><li>Nearly every condo unit here has a citizen or PR household.</li></ul>') + '</div>';
   }
 
-  // Tab 3: prices, how it's changing, how crowded, what's coming
+  // Tab 3: prices, how it's changing, how crowded
   function areaGrowth(id) {
     var a = S.areas[id];
-    return trendBlock(a) + changeBlock((a.census || {}).change) + crowdBlock(a.crowd) +
-      '<div class="box"><span class="eyebrow">New projects coming</span>' + soon('coming soon — URA pipeline (new condos, units, year)') + '</div>' +
-      '<div class="box"><span class="eyebrow">Future MRT</span>' + soon('coming soon — new stations opening nearby') + '</div>';
+    return trendBlock(a) + changeBlock((a.census || {}).change) + crowdBlock(a.crowd);
   }
 
   function spark(vals) {
@@ -1141,9 +1150,7 @@
       '<div class="head-row">' + (a.name ? '<button type="button" class="btn" data-action="back">← Back to ' + esc(a.name) + '</button>' : '<span></span>') +
       '<button type="button" class="icon-btn" data-action="close" aria-label="Close">×</button></div>' +
       '<div class="head-row" style="align-items:flex-start"><div><div class="title">' + esc(c.name) + (c.ec ? '<span class="badge">EC</span>' : '') + '<span id="gRating" class="g-rating">' + googleRating(c) + '</span></div>' +
-      '<div class="sub">' + esc([c.address, a.name, c.district].filter(Boolean).join(' · ')) + '</div></div>' +
-      '<button type="button" class="btn short-btn' + (star ? ' on' : '') + '" data-action="star" aria-pressed="' + star + '">' +
-      (star ? '★ Shortlisted' : '☆ Shortlist') + '</button></div>' +
+      '<div class="sub">' + esc([c.address, a.name, c.district].filter(Boolean).join(' · ')) + '</div></div></div>' +
       tabButtons([['summary', 'Summary'], ['nearby', 'Nearby'], ['prices', 'Prices'], ['sale', 'For sale (' + groups.length + ')']], tab) +
       '</div></div>' +
       '<div class="card-body">' + (tab === 'sale' ? saleTab(c, groups) : (tab === 'prices' ? uraSalesBlock(c) + rentTab(c, units) :
@@ -1188,7 +1195,7 @@
     var nb = c.near || {}, u = c.ura, now = new Date().getFullYear();
     var lease = u && u.leaseYears && u.leaseStart ? u.leaseYears + '-yr · ' + Math.max(u.leaseYears - (now - u.leaseStart), 0) + ' left'
       : (isFreehold(c.tenure) ? 'Freehold' : (c.tenure || ''));
-    var price = units[0].price;
+    var price = units[0].price, drops = groups.filter(function (g) { return priceMove(g) < 0; }).length;
     function state(m, limit, walk) { return m == null ? '' : ((walk != null ? walk <= 10 : m <= limit) ? 'near' : 'far'); }
     var parts = [
       ['MRT ' + (nb.mrt && nb.mrt.exit ? 'exit ' + esc(nb.mrt.exit) : ''), nb.mrt ? (nb.mrt.walkMin ? nb.mrt.walkMin + ' min' : metres(nb.mrt.m)) : '—',
@@ -1206,9 +1213,10 @@
     var key = tip('Middle = OneMap drive to VivoCity in normal traffic. Below: green = close (MRT ≤ 10 min walk or 800 m, hawker / supermarket ≤ 600 m), red = further.');
     var drive = (nb.drive ? '<b>' + nb.drive.min + ' min</b>drive to VivoCity' : '<b>—</b>' + (S.meta.onemapLogin ? 'drive time not available' : 'drive needs the OneMap login')) + key;
     return '<div class="box hero"><span class="lab">Asking from</span>' +
-      '<div class="money">' + (price ? full(price) : '—') + '<span>.00</span></div>' +
+      '<div class="money">' + (price ? full(price) : '—') + '</div>' +
       '<div class="pills"><span class="pill">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + ' for sale</span>' +
-      (lease ? '<span class="pill">' + esc(lease) + (c.built ? ' · ' + esc(c.built) : '') + '</span>' : '') + '</div>' +
+      (lease ? '<span class="pill">' + esc(lease) + (c.built ? ' · ' + esc(c.built) : '') + '</span>' : '') +
+      (drops ? '<span class="pill up">▼ ' + drops + ' price drop' + (drops === 1 ? '' : 's') + '</span>' : '') + '</div>' +
       '<div class="gauge">' + gauge + '<div class="g">' + drive + '</div></div>' +
       '<div class="gl">' + parts.map(function (x) { return '<span class="' + x[2] + '"><b>' + x[1] + '</b>' + x[0] + '</span>'; }).join('') + '</div></div>';
   }
@@ -1217,7 +1225,7 @@
   function dock(c, units, star) {
     var cheapest = units[0], plan = units.filter(function (l) { return l.floorplan; })[0];
     return '<div class="dock"><button type="button" class="' + (star ? 'dark' : '') + '" data-action="star" aria-pressed="' + star + '">' + (star ? '★ Shortlisted' : '☆ Shortlist') + '</button>' +
-      '<a href="' + esc(plan ? plan.floorplan : cheapest.url) + '" target="_blank" rel="noopener">Floor plan' + (plan ? '' : ' on ' + esc(cheapest.source)) + '</a>' +
+      '<a href="' + esc(plan ? plan.floorplan : cheapest.url) + '" target="_blank" rel="noopener">Floor plan' + (plan ? '' : '<span class="wide-only"> on ' + esc(cheapest.source) + '</span>') + '</a>' +
       '<a href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">Open listing ↗</a></div>';
   }
 
@@ -1282,7 +1290,6 @@
       schools + row('Park', park, big) +
       row('Supermarket', nb.supermarket ? esc(nb.supermarket.name) + ' · <strong>' + metres(nb.supermarket.m) + '</strong>' : soon('none found'), nb.supermarket ? esc(nb.supermarket.street) : '') +
       workerRows(nb, row) +
-      row('Expressway', soon()) +
       row('Drive to VivoCity', nb.drive ? '<strong>' + nb.drive.min + ' min</strong> · ' + nb.drive.km + ' km' +
         tip('OneMap driving route to VivoCity\'s main entrance, in normal traffic — rush hour is usually slower.') :
         soon(S.meta.onemapLogin ? 'not available' : 'needs the OneMap login')) +
@@ -1475,7 +1482,8 @@
         return '<div class="box unit"><div class="head-row"><strong>' + bedsText(l.beds) + (l.baths ? ' · ' + l.baths + ' bath' : '') + ' · ' +
           (l.size ? l.size.toLocaleString('en-SG') + ' sqft' : '—') + '</strong><span class="price">' + full(l.price) + '</span></div>' +
           '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' + esc(l.source) + (g.length > 1 ? ' · posted ' + g.length + '×' : '') + '</span>' + (g.length > 1 ? tip('Posted ' + g.length + ' times with the same beds, size and price — most likely the same unit listed by different agents.') : '') + '<span>' + '</span></div>' +
-          '<div class="vs">' + chip + '</div>' +
+          '<div class="vs">' + chip + priceChip(g) + '</div>' +
+          '<div class="hint">' + onMarket(g) + '</div>' +
           '<div class="links">' + floor + '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Open listing on ' + esc(l.source) + ' →</a></div></div>';
       }).join('');
   }
@@ -1501,6 +1509,23 @@
     else if (t.dataset.tab) { S.panel.tab = t.dataset.tab; renderPanel(); }
     else if (t.dataset.action === 'allrent') { S.panel.allRent = !S.panel.allRent; var y2 = $('detail').querySelector('.card-body').scrollTop; renderPanel(); $('detail').querySelector('.card-body').scrollTop = y2; }
     else if (t.dataset.action === 'allsales') { S.panel.allSales = !S.panel.allSales; var y = $('detail').querySelector('.card-body').scrollTop; renderPanel(); $('detail').querySelector('.card-body').scrollTop = y; }
+  }
+
+  // Price change since the robot first saw the unit (12) and how long it has been for sale (13)
+  function moved(g) { return g.filter(function (l) { return l.wasPrice && l.price != null; })[0]; }
+  function priceMove(g) { var l = moved(g); return l ? l.price - l.wasPrice : 0; }
+  function priceChip(g) {
+    var l = moved(g), d = priceMove(g);
+    if (!d) return '';
+    return '<span class="chip ' + (d < 0 ? 'down' : 'up') + '">' + (d < 0 ? '▼ ' : '▲ ') + money(Math.abs(d)) + ' since ' + esc(shortDate(l.wasOn)) + '</span>' +
+      tip('Asking price was ' + full(l.wasPrice) + ' when the robot first saw this listing on ' + shortDate(l.wasOn) + '; now ' + full(l.price) + '.');
+  }
+  function onMarket(g) {
+    var listed = g.map(function (l) { return l.listedOn; }).filter(Boolean).sort()[0];
+    var seen = g.map(function (l) { return l.firstSeen; }).filter(Boolean).sort()[0];
+    function days(d) { var n = Math.max(0, Math.floor(daysAgo(d))); return n === 1 ? '1 day' : n + ' days'; }
+    if (listed) return 'On the market ' + days(listed) + ' · listed ' + esc(shortDate(listed));
+    return seen ? 'On the market ' + days(seen) + '+ · robot first saw it ' + esc(shortDate(seen)) : '';
   }
 
   // Listings with the same beds, size and price are usually one unit posted by several agents
@@ -1783,7 +1808,7 @@
   var CHIP_TEXT = {
     types: { Condo: 'Condo', Apartment: 'Apartment', EC: 'EC' }, tenure: { free: 'Freehold', '999': '999-year', '99': '99-year' },
     age: { 'new': 'New ≤ 5 yrs', '5': '5–10 yrs old', '10': '10–20 yrs old', '20': '20+ yrs old' },
-    rent: { low: 'Mostly owners', mid: 'Mixed renting', high: 'Rental-heavy' }, other: { review: 'Stacked review' }
+    rent: { low: 'Mostly owners', mid: 'Mixed renting', high: 'Rental-heavy' }, other: { review: 'Stacked review', drop: 'Price dropped' }
   };
   function range2(a, b, fmt) { return (a ? fmt(a) : 'Any') + ' – ' + (b ? fmt(b) : 'Any'); }
   function activeTags() {                // [text, key] for each filter that is set
@@ -1836,16 +1861,20 @@
     $('count').title = 'From: ' + (S.meta.files || []).join(', ') + (S.meta.unplaced ? '\n' + S.meta.unplaced + ' listing(s) not on the map (no address match)' : '');
   }
 
+  // Top bar: one dot + a few words; the details are on hover (agreed 27 Oct)
   function updateStatus() {
     var u = S.meta.uraStatus || {}, r = S.meta.rentStatus || {}, el = $('status');
-    var when = u.downloaded ? new Date(u.downloaded).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : '';
-    var ok = u.ok && r.ok !== false;
-    el.textContent = (ok ? 'URA ✅' : 'URA ⚠️') + ' · OneMap, LTA, data.gov.sg: soon';
-    el.title = u.ok ? 'URA sales downloaded ' + when + ' (' + (u.downloaded || '') + ')' + (u.token ? '\nToken refreshed ' + u.token : '') + '\n' + (u.matched || 0) + ' condos matched'
-      : 'URA: ' + (u.message || 'unknown problem') + (when ? '\nShowing sales downloaded ' + when : '');
-    if (r.ok === false) el.title += '\nURA rentals: ' + r.message;
-    else if (r.downloaded) el.title += '\nRentals downloaded ' + new Date(r.downloaded).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
-    el.classList.toggle('warn', !ok);
+    function day(d) { var t = d ? new Date(/T/.test(d) ? d : d + 'T00:00:00') : null; return t && !isNaN(t) ? t.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : '—'; }
+    var age = daysAgo(S.meta.updated), problems = [];          // [short words, details]
+    if (!u.ok) problems.push(['URA prices not updated', 'URA sales: ' + (u.message || 'not loaded') + (u.downloaded ? ' — showing the copy from ' + day(u.downloaded) : '')]);
+    if (r.ok === false) problems.push(['URA rentals not updated', 'URA rentals: ' + r.message]);
+    if (age > 14 && age < Infinity) problems.push(['Listings ' + Math.floor(age / 7) + ' weeks old', 'Newest listings are from ' + day(S.meta.updated) + ' — time to run the robots']);
+    var lines = ['Listings: newest robot run ' + day(S.meta.updated)];
+    if (u.ok) lines.push('URA sales: downloaded ' + day(u.downloaded) + ' · ' + (u.matched || 0) + ' condos matched');
+    if (r.ok !== false && r.downloaded) lines.push('URA rentals: downloaded ' + day(r.downloaded));
+    el.innerHTML = '<i class="dot" aria-hidden="true"></i>' + esc(problems.length ? problems[0][0] + (problems.length > 1 ? ' +' + (problems.length - 1) : '') : 'Data up to date');
+    el.title = problems.map(function (x) { return '⚠ ' + x[1]; }).concat(lines).join('\n');
+    el.classList.toggle('warn', problems.length > 0);
   }
 
   // ---- search ---------------------------------------------------------------------
@@ -1860,7 +1889,7 @@
     function go(h) {
       if (!h) return;
       box.hidden = true; input.blur();
-      if (h.area) { var b = S.areas[h.area].layer.getBounds(); map.flyToBounds(b, { duration: 0.6, paddingBottomRight: [440, 0] }); openArea(h.area); }
+      if (h.area) { var b = S.areas[h.area].layer.getBounds(); map.flyToBounds(b, cardRoom({ duration: 0.6, paddingBottomRight: [440, 0] })); openArea(h.area); }
       else openCondo(h.condo, { fly: true });
     }
     input.addEventListener('input', function () {
@@ -1949,7 +1978,12 @@
         if ((l.scrapedOn || '') > g.seen) g.seen = l.scrapedOn || '';
       });
       S.meta = r[0].meta; S.ura = r[0].ura || {}; S.rent = r[0].rent || {}; S.mcst = r[0].mcst || {}; S.nearby = r[0].nearby || {}; S.places = r[0].places || {};
-      (r[2] || []).forEach(function (i) { S.shortlist.push(i.key); S.shortAdded[i.key] = i.added; });
+      var alias = S.meta.aliases || {};          // a condo once named by its address now has its real name
+      (r[2] || []).forEach(function (i) {
+        var k = alias[i.key] || i.key;
+        if (S.shortlist.indexOf(k) < 0) { S.shortlist.push(k); S.shortAdded[k] = i.added; }
+      });
+      if (!S.shortlist.length || phone()) setLeft(false);        // nothing shortlisted yet: just the ★ button
       buildCondos();
       drawAreas(r[1]);
       fillDistrictChips();
