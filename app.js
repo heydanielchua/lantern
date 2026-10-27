@@ -746,11 +746,15 @@
       "dog": "<circle cx=\"11\" cy=\"4\" r=\"2\" /> <circle cx=\"18\" cy=\"8\" r=\"2\" /> <circle cx=\"20\" cy=\"16\" r=\"2\" /> <path d=\"M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z\" />",
       "worship": "<path d=\"M10 18v-7\" /> <path d=\"M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z\" /> <path d=\"M14 18v-7\" /> <path d=\"M18 18v-7\" /> <path d=\"M3 22h18\" /> <path d=\"M6 18v-7\" />",
       "dorm": "<path d=\"M10 12h4\" /> <path d=\"M10 8h4\" /> <path d=\"M14 21v-3a2 2 0 0 0-4 0v3\" /> <path d=\"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2\" /> <path d=\"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16\" />"
+,
+      "newproj": "<rect x=\"2\" y=\"6\" width=\"20\" height=\"8\" rx=\"1\" /> <path d=\"M17 14v7\" /> <path d=\"M7 14v7\" /> <path d=\"M17 3v3\" /> <path d=\"M7 3v3\" /> <path d=\"M10 14 2.3 6.3\" /> <path d=\"m14 6 7.7 7.7\" /> <path d=\"m8 6 8 8\" />"
   };
+  ICON.futuremrt = ICON.mrt;
   // icon style B (agreed 25 Oct): solid colour circle, white icon + edge, all the same size; MRT = one MRT-sign red, worship = warm brown
   var PLACE_KINDS = [
-    ['mrt', 'MRT exits', '#D42E12'], ['shop', 'Supermarkets', '#4C7458'], ['hawker', 'Hawkers', '#8E6CC2'],
-    ['park', 'Parks', '#46B035'], ['dog', 'Dog runs', '#46B035'], ['worship', 'Places of worship', '#A47551'], ['dorm', 'Worker dormitories', '#E07A7A']
+    ['mrt', 'MRT exits', '#D42E12'], ['futuremrt', 'Future MRT', '#D42E12'], ['shop', 'Supermarkets', '#4C7458'], ['hawker', 'Hawkers', '#8E6CC2'],
+    ['park', 'Parks', '#46B035'], ['dog', 'Dog runs', '#46B035'], ['worship', 'Places of worship', '#A47551'], ['dorm', 'Worker dormitories', '#E07A7A'],
+    ['newproj', 'New projects', '#3B6FB6']      // 27 Oct: future MRT = dashed white circle; new homes being built = blue
   ];
   function iconSvg(kind) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[kind] + '</svg>';
@@ -794,12 +798,14 @@
       pts.forEach(function (p) {
         var big = p === near, planned = k[0] === 'worship' && p[4];
         var label = k[0] === 'mrt' ? p[2] + (p[3] ? ' · exit ' + p[3] : '') : (k[0] === 'park' && p[3] ? p[2] + ' · ' + p[3] + ' ha' : (k[0] === 'worship' ? p[2] + (planned ? ' · planned (Master Plan 2025)' : (p[3] && p[3] !== p[2] ? ' · ' + p[3] : '')) : p[2]));
+        if (k[0] === 'newproj') label = p[2] + ' · ' + n(p[3]) + ' units' + (p[4] ? ' · ready ' + p[4] : '') + (p[5] ? ' · spot approximate' : '');
+        if (k[0] === 'futuremrt') label = p[2] + ' · ' + p[3] + (p[5] ? ' (new line)' : '') + ' · opens ' + p[4];
         if (c) label += ' · ' + metres(Math.round(metresBetween(c.lat, c.lng, p[0], p[1])));
         if (k[0] === 'park' && p[4]) {
           L.polygon(p[4], { color: '#46B035', weight: 1.5, opacity: 0.9, fillColor: '#46B035', fillOpacity: 0.14, interactive: false }).addTo(placeLayer);
         }
         L.marker([p[0], p[1]], {
-          icon: L.divIcon({ className: 'poi' + (big ? ' near' : '') + (planned ? ' planned' : ''), html: '<span style="--c:' + k[2] + '">' + iconSvg(k[0]) + '</span>',
+          icon: L.divIcon({ className: 'poi' + (big ? ' near' : '') + (planned ? ' planned' : '') + (k[0] === 'futuremrt' ? ' future' : ''), html: '<span style="--c:' + k[2] + '">' + iconSvg(k[0]) + '</span>',
             iconSize: [26, 26], iconAnchor: [13, 13] }),
           keyboard: false, zIndexOffset: big ? -100 : -200
         }).bindTooltip(esc(label), { direction: 'top', offset: [0, -12] }).addTo(placeLayer);
@@ -813,6 +819,34 @@
         }).join('');
     }
   }
+  // What's coming (27 Oct, information only): new homes being built (URA pipeline) and future MRT stations (LTA)
+  function comingNear(c, kind, within) {
+    if (!c || c.lat == null) return [];
+    return (S.places[kind] || []).map(function (p) { return { p: p, m: Math.round(metresBetween(c.lat, c.lng, p[0], p[1])) }; })
+      .filter(function (x) { return x.m <= within && x.p[2] !== c.name; }).sort(function (x, y) { return x.m - y.m; });
+  }
+  function comingIn(id, kind) {
+    var a = S.areas[id], geom = a && a.layer && a.layer.feature && a.layer.feature.geometry;
+    return geom && S.places ? (S.places[kind] || []).filter(function (p) { return insideArea(p[0], p[1], geom); }) : [];
+  }
+  function unitsOf(list) { return list.reduce(function (t, x) { return t + ((x.p || x)[3] || 0); }, 0); }
+  var PIPE_TIP = 'URA\'s list of private homes being built (latest quarter), condos and apartments only. "Ready" = URA\'s expected completion year, where given.';
+  var RAIL_TIP = 'Stations announced by LTA that aren\'t open yet; spots from URA\'s Master Plan. Opening years as announced (checked Oct 2026) — they can change.';
+  function comingBlock(id) {
+    var np = comingIn(id, 'newproj').sort(function (x, y) { return y[3] - x[3]; }), fm = comingIn(id, 'futuremrt');
+    return '<div class="box"><span class="eyebrow">New projects coming' + tip(PIPE_TIP) + '</span>' +
+      (np.length ? '<div class="rows">' + np.map(function (p) {
+        return '<div><span>' + esc(p[2]) + '</span><span><strong>' + n(p[3]) + ' units</strong>' + (p[4] ? ' · ready ' + p[4] : '') +
+          (p[5] ? '<br><small class="hint">spot approximate</small>' : '') + '</span></div>';
+      }).join('') + '</div>' : '<span class="empty">None in URA\'s list for this area.</span>') + '</div>' +
+      '<div class="box"><span class="eyebrow">Future MRT' + tip(RAIL_TIP) + '</span>' +
+      (fm.length ? '<div class="rows">' + fm.map(function (p) {
+        return '<div><span>' + esc(p[2]) + '</span><span><strong>' + esc(p[3]) + '</strong>' + (p[5] ? ' (new line)' : '') + ' · ' + esc(p[4]) + '</span></div>';
+      }).join('') + '</div>' : '<span class="empty">No new stations announced in this area.</span>') + '</div>';
+  }
+  // Rush-hour drive (Google, 27 Oct) — Google's rules: not shown once it's more than 30 days old
+  function rushOf(nb) { return nb && nb.rush && daysAgo(nb.rush.on) <= 30 ? nb.rush : null; }
+
   function setupPlaceLegend() {
     var el = document.createElement('div');
     el.id = 'placeLegend'; el.className = 'place-legend'; el.hidden = true;
@@ -905,8 +939,12 @@
       var g = growth(ch.condoHomes);
       rows.push('<div><span>Condo homes</span><span><strong>' + (g > 0 ? '▲ ' : (g < 0 ? '▼ ' : '')) + Math.abs(g) + '%</strong> since 2010</span></div>');
     }
+    var np = comingIn(a.id, 'newproj'), fm = comingIn(a.id, 'futuremrt');
+    rows.push('<div><span>New condos coming</span><span>' + (np.length ? '<strong>' + np.length + ' project' + (np.length === 1 ? '' : 's') + '</strong> · ' +
+      n(unitsOf(np)) + ' units' : soon('none in URA\'s list')) + '</span></div>');
+    if (fm.length) rows.push('<div><span>Future MRT</span><span>' + fm.map(function (p) { return '<strong>' + esc(p[2]) + '</strong> (' + esc(p[4]) + ')'; }).join(', ') + '</span></div>');
     return '<div class="box"><div class="head-row"><span class="eyebrow">Future growth' +
-      tip('Prices = typical URA $psf, first vs last full year (Growing = 3% a year or more). Condo homes = households living in condos (Census 2010 → 2020).') + '</span>' +
+      tip('Prices = typical URA $psf, first vs last full year (Growing = 3% a year or more). Condo homes = households living in condos (Census 2010 → 2020). New condos = URA\'s list of private homes being built. Future MRT = stations announced by LTA.') + '</span>' +
       '<button type="button" class="link-btn" data-tab="growth">Growth tab →</button></div><div class="rows">' + rows.join('') + '</div></div>';
   }
 
@@ -1036,10 +1074,10 @@
         '<ul class="plain"><li>Nearly every condo unit here has a citizen or PR household.</li></ul>') + '</div>';
   }
 
-  // Tab 3: prices, how it's changing, how crowded
+  // Tab 3: prices, how it's changing, how crowded, what's coming
   function areaGrowth(id) {
     var a = S.areas[id];
-    return trendBlock(a) + changeBlock((a.census || {}).change) + crowdBlock(a.crowd);
+    return trendBlock(a) + changeBlock((a.census || {}).change) + crowdBlock(a.crowd) + comingBlock(id);
   }
 
   function spark(vals) {
@@ -1211,7 +1249,9 @@
     var gauge = '<svg width="240" height="132" viewBox="0 0 240 132" aria-hidden="true">' +
       arc(180, 0, '#ecebe7') + arc(180, 128, colour[parts[0][2]]) + arc(118, 62, colour[parts[1][2]]) + arc(52, 0, colour[parts[2][2]]) + '</svg>';
     var key = tip('Middle = OneMap drive to VivoCity in normal traffic. Below: green = close (MRT ≤ 10 min walk or 800 m, hawker / supermarket ≤ 600 m), red = further.');
-    var drive = (nb.drive ? '<b>' + nb.drive.min + ' min</b>drive to VivoCity' : '<b>—</b>' + (S.meta.onemapLogin ? 'drive time not available' : 'drive needs the OneMap login')) + key;
+    var rh = rushOf(nb);
+    var drive = (nb.drive ? '<b>' + nb.drive.min + ' min</b>drive to VivoCity' : '<b>—</b>' + (S.meta.onemapLogin ? 'drive time not available' : 'drive needs the OneMap login')) + key +
+      (rh && rh.am ? '<span class="rush">~' + rh.am.min + ' min at 8am</span>' : '');
     return '<div class="box hero"><span class="lab">Asking from</span>' +
       '<div class="money">' + (price ? full(price) : '—') + '</div>' +
       '<div class="pills"><span class="pill">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + ' for sale</span>' +
@@ -1255,7 +1295,12 @@
     if (nb && nb.hawkers && nb.hawkers[0]) life.push('hawker ' + metres(nb.hawkers[0].m));
     if (nb && nb.supermarket) life.push(esc(nb.supermarket.name.split(' ').slice(0, 2).join(' ')) + ' ' + metres(nb.supermarket.m));
     if (life.length) lines.push('<strong>Daily life:</strong> ' + life.join(' · ') + '.');
-    if (nb && nb.drive) lines.push('<strong>' + nb.drive.min + ' min drive</strong> to VivoCity (' + nb.drive.km + ' km, normal traffic).');
+    var rh = rushOf(nb);
+    if (nb && nb.drive) lines.push('<strong>' + nb.drive.min + ' min drive</strong> to VivoCity (' + nb.drive.km + ' km, normal traffic)' +
+      (rh && rh.am ? ' · about <strong>' + rh.am.min + ' min at 8am</strong>' : '') + '.');
+    var fm = comingNear(c, 'futuremrt', 1000)[0], np = comingNear(c, 'newproj', 1000);
+    if (fm) lines.push('<strong>New MRT coming:</strong> ' + esc(fm.p[2]) + ' (' + esc(fm.p[3]) + ', ' + esc(fm.p[4]) + '), ' + metres(fm.m) + ' away.');
+    if (unitsOf(np) >= 500) lines.push('<strong>' + n(unitsOf(np)) + ' new homes</strong> being built within 1 km — more competition when renting out or selling.');
     var r = c.rent, cut = monthsAgo(12);
     if (r && r.rentals.length && c.mcst && c.mcst.units) {
       var p = share(r.rentals.filter(function (x) { return x.month > cut; }).length, c.mcst.units);
@@ -1276,6 +1321,12 @@
     var mrt = nb.mrt ? row('MRT', esc(nb.mrt.station) + ' · <strong>' + (nb.mrt.exit ? 'exit ' + esc(nb.mrt.exit) + ', ' : '') + walk + '</strong>' +
       (nb.mrt.walkMin ? ' <span class="hint">(' + metres(nb.mrt.m) + ')</span>' : ''),
       [nb.mrt2 ? esc(nb.mrt2.station) + ' ' + metres(nb.mrt2.m) : '', listed].filter(Boolean).join('<br>')) : row('MRT', soon('none found'));
+    var fm = comingNear(c, 'futuremrt', 2000), np = comingNear(c, 'newproj', 1000), rh = rushOf(nb);
+    var future = row('Future MRT' + tip(RAIL_TIP), fm[0] ? esc(fm[0].p[2]) + ' · <strong>' + metres(fm[0].m) + '</strong>' : soon('none announced within 2 km'),
+      fm.slice(0, 2).map(function (x, i) { return (i ? esc(x.p[2]) + ' ' + metres(x.m) + ' · ' : '') + esc(x.p[3]) + (x.p[5] ? ' (new line)' : '') + ', opens ' + esc(x.p[4]); }).join('<br>'));
+    var building = row('New projects' + tip(PIPE_TIP + ' Lots of new homes nearby can mean more competition when renting out or selling.'),
+      np.length ? '<strong>' + np.length + '</strong> within 1 km · ' + n(unitsOf(np)) + ' units' : soon('none within 1 km'),
+      np.slice(0, 3).map(function (x) { return esc(x.p[2]) + ' ' + metres(x.m) + (x.p[4] ? ' · ready ' + x.p[4] : '') + (x.p[5] ? ' (spot approximate)' : ''); }).join('<br>'));
     var hw = nb.hawkers || [];
     var pk = nb.primary || { in1km: 0, in2km: 0, list: [] };
     var schools = row('Primary schools', '<strong>' + pk.in1km + '</strong> within 1 km · <strong>' + pk.in2km + '</strong> within 2 km' +
@@ -1285,14 +1336,16 @@
       nb.dogRun ? 'dog run: ' + esc(nb.dogRun.name) + ' ' + metres(nb.dogRun.m) : ''].filter(Boolean).join('<br>');
     return '<div class="box"><span class="eyebrow">Nearby' +
       tip('Distances are straight lines from the condo; MRT walking times follow real paths (OneMap). Sources: LTA MRT exits, NEA hawker centres, NParks parks, MOE schools, NEA supermarket licences (mid-2024). Big park = 5 hectares or more.') + '</span>' +
-      '<div class="rows">' + mrt +
+      '<div class="rows">' + mrt + future +
       row('Hawker', hw[0] ? esc(hw[0].name) + ' · <strong>' + metres(hw[0].m) + '</strong>' : soon('none found'), hw[1] ? esc(hw[1].name) + ' ' + metres(hw[1].m) : '') +
       schools + row('Park', park, big) +
       row('Supermarket', nb.supermarket ? esc(nb.supermarket.name) + ' · <strong>' + metres(nb.supermarket.m) + '</strong>' : soon('none found'), nb.supermarket ? esc(nb.supermarket.street) : '') +
-      workerRows(nb, row) +
+      workerRows(nb, row) + building +
       row('Drive to VivoCity', nb.drive ? '<strong>' + nb.drive.min + ' min</strong> · ' + nb.drive.km + ' km' +
-        tip('OneMap driving route to VivoCity\'s main entrance, in normal traffic — rush hour is usually slower.') :
-        soon(S.meta.onemapLogin ? 'not available' : 'needs the OneMap login')) +
+        tip('OneMap driving route to VivoCity\'s main entrance, in normal traffic. Rush hour = Google\'s traffic prediction for an ordinary weekday: to VivoCity leaving 8am, home leaving 6pm (refreshed every 30 days).') :
+        soon(S.meta.onemapLogin ? 'not available' : 'needs the OneMap login'),
+        rh ? 'Rush hour: ' + (rh.am ? '<strong>' + rh.am.min + ' min</strong> leaving 8am' : '') + (rh.am && rh.pm ? ' · ' : '') +
+          (rh.pm ? '<strong>' + rh.pm.min + ' min</strong> home at 6pm' : '') : '') +
       '</div></div>';
   }
 
@@ -1872,6 +1925,8 @@
     var lines = ['Listings: newest robot run ' + day(S.meta.updated)];
     if (u.ok) lines.push('URA sales: downloaded ' + day(u.downloaded) + ' · ' + (u.matched || 0) + ' condos matched');
     if (r.ok !== false && r.downloaded) lines.push('URA rentals: downloaded ' + day(r.downloaded));
+    var rs = S.meta.rushStatus;
+    if (rs && rs.ok === false) lines.push('Rush-hour drive times (Google): ' + rs.message);
     el.innerHTML = '<i class="dot" aria-hidden="true"></i>' + esc(problems.length ? problems[0][0] + (problems.length > 1 ? ' +' + (problems.length - 1) : '') : 'Data up to date');
     el.title = problems.map(function (x) { return '⚠ ' + x[1]; }).concat(lines).join('\n');
     el.classList.toggle('warn', problems.length > 0);

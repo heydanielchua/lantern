@@ -496,6 +496,9 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 /* solid icons (option B, 25 Oct); the nearest of each kind gets an extra ring in its colour */
 .poi.near span { box-shadow: 0 0 0 2px var(--c), 0 2px 8px rgba(0, 0, 0, 0.35); }
 .poi.planned span { border-style: dashed; }
+.poi.future span { background: #fff; color: var(--c); border: 2px dashed var(--c); }          /* not open yet (27 Oct) */
+.place-legend button[data-place="futuremrt"] > span { border-style: dashed; }
+.gauge .g .rush { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
 .ring-label { font-size: 10px; color: #414140; font-weight: 600; text-align: center; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
 .place-legend { position: absolute; left: 16px; bottom: 16px; z-index: 900; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   max-width: min(560px, calc(100% - 480px)); padding: 8px 10px; border-radius: 18px; background: rgba(251, 251, 250, 0.85);
