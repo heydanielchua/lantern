@@ -1083,10 +1083,11 @@
   }
   function thumbImg(c) {
     var fallback = mapThumb(c);
-    var src = S.meta.google ? '/api/google/thumb?condo=' + encodeURIComponent(c.key) : fallback;
+    var g = S.meta.google && !S.meta.online;      // online copy: OneMap map thumbnails (saves Google look-ups)
+    var src = g ? '/api/google/thumb?condo=' + encodeURIComponent(c.key) : fallback;
     return '<span class="thumb-img">' + (src ? '<img src="' + esc(src) + '" alt="" loading="lazy"' +
-      (S.meta.google && fallback ? ' onerror="this.onerror=null;this.src=\'' + esc(fallback) + '\';this.parentNode.classList.add(\'map\')"' : '') + '>' : '') +
-      '<small>' + (S.meta.google ? 'Photo: Google' : 'Map: OneMap') + '</small></span>';
+      (g && fallback ? ' onerror="this.onerror=null;this.src=\'' + esc(fallback) + '\';this.parentNode.classList.add(\'map\')"' : '') + '>' : '') +
+      '<small>' + (g ? 'Photo: Google' : 'Map: OneMap') + '</small></span>';
   }
 
   function areaCondoList(id) {
@@ -1536,7 +1537,8 @@
     if (!S.meta.google || c.lat == null) {
       return '<div class="photo">Photos: on the original listing' + (S.meta.google || S.meta.online ? '' : tip('Add a Google Maps key (Add API Keys.command) to see photos and Street View here.')) + '</div>';
     }
-    var items = [{ src: '/api/google/streetview?condo=' + encodeURIComponent(c.key), credit: 'Street View', sv: true }];
+    var sv = window.HQ_STREETVIEW ? window.HQ_STREETVIEW(c) : '/api/google/streetview?condo=' + encodeURIComponent(c.key);   // online: straight from Google
+    var items = [{ src: sv, credit: 'Street View', sv: true }];
     ((g && g.photos) || []).forEach(function (p) {
       items.push({ src: p.src, credit: p.authors.map(function (a) { return a.name; }).join(', '), authors: p.authors });
     });

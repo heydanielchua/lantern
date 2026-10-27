@@ -91,6 +91,7 @@
   window.HQ_API = function (path, opts) {
     if (path === '/api/data') return Promise.resolve(DATA.data);
     if (path === '/api/areas') return Promise.resolve(DATA.areas);
+    if (path.indexOf('/api/google/place?condo=') === 0) return googlePlace(decodeURIComponent(path.split('=')[1]));
     if (path === '/api/shortlist') {
       if (opts && opts.method === 'POST') return saveShortlist(JSON.parse(opts.body));
       return readShortlist().catch(function () { notice('Couldn\'t read the shortlist from GitHub.'); return []; });
@@ -98,7 +99,76 @@
     return Promise.reject(new Error('not available online'));
   };
 
+  // ---- Google photos, rating, reviews, Street View (only if a Lantern Google key was published) ---
+  // Fetched live from Google in this browser each time a condo opens, never stored (Google's rules).
+  // The key only works on this website (Google Cloud: website restriction + API restriction + quota).
+  var GLIMIT = 300;
+  function gCount(n) {          // same safety limit as the Mac mini: 300 look-ups a day (per laptop)
+    var today = new Date().toISOString().slice(0, 10), u = {};
+    try { u = JSON.parse(LS.get('lanternGoogle') || '{}'); } catch (e) { u = {}; }
+    if (u.date !== today) u = { date: today, count: 0 };
+    if (u.count + n > GLIMIT) return false;
+    u.count += n; LS.set('lanternGoogle', JSON.stringify(u)); return true;
+  }
+  function gFetch(url, opts, fields) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'X-Goog-Api-Key': DATA.googleKey, 'X-Goog-FieldMask': fields }, opts.headers || {});
+    return fetch(url, opts).then(function (r) {
+      return r.json().then(function (j) { if (!r.ok) throw new Error('Google said ' + r.status + (j.error ? ': ' + j.error.message : '')); return j; });
+    });
+  }
+  function condoSpot(key) {
+    var pts = DATA.data.listings.filter(function (l) { return l.condo === key && l.lat != null; });
+    if (!pts.length) return null;
+    return { name: pts[0].name, lat: pts.reduce(function (s, l) { return s + l.lat; }, 0) / pts.length,
+      lng: pts.reduce(function (s, l) { return s + l.lng; }, 0) / pts.length };
+  }
+  function metres(a, b, c, d) { var dy = (c - a) * 111320, dx = (d - b) * 111320 * Math.cos(a * Math.PI / 180); return Math.sqrt(dx * dx + dy * dy); }
+  function placeId(key, spot) {
+    var known = (DATA.placeIds || {})[key];
+    if (known !== undefined) return Promise.resolve(known);
+    var cache = {}; try { cache = JSON.parse(LS.get('lanternPlaceIds') || '{}'); } catch (e) { cache = {}; }
+    if (cache[key] !== undefined) return Promise.resolve(cache[key]);
+    if (!gCount(1)) return Promise.reject(new Error('Daily limit of ' + GLIMIT + ' Google look-ups reached — try again tomorrow'));
+    return gFetch('https://places.googleapis.com/v1/places:searchText', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ textQuery: spot.name + ' Singapore', maxResultCount: 5,
+        locationBias: { circle: { center: { latitude: spot.lat, longitude: spot.lng }, radius: 500 } } }) }, 'places.id,places.location')
+      .then(function (j) {
+        var best = null;
+        (j.places || []).some(function (p) { var l = p.location || {}; if (l.latitude != null && metres(spot.lat, spot.lng, l.latitude, l.longitude) <= 500) { best = p.id; return true; } return false; });
+        cache[key] = best; LS.set('lanternPlaceIds', JSON.stringify(cache)); return best;
+      });
+  }
+  var PHOTO = /^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/;
+  function googlePlace(key) {
+    var spot = condoSpot(key);
+    if (!spot) return Promise.resolve({ error: 'unknown condo' });
+    return placeId(key, spot).then(function (pid) {
+      if (!pid) return { found: false };
+      if (!gCount(8)) throw new Error('Daily limit of ' + GLIMIT + ' Google look-ups reached — try again tomorrow');   // details + up to 6 photos + Street View
+      return gFetch('https://places.googleapis.com/v1/places/' + encodeURIComponent(pid), {},
+        'id,displayName,rating,userRatingCount,googleMapsUri,photos,reviews').then(function (d) {
+        var photos = (d.photos || []).filter(function (p) { return PHOTO.test(p.name || ''); }).slice(0, 6).map(function (p) {
+          return { src: 'https://places.googleapis.com/v1/' + p.name + '/media?maxWidthPx=1200&maxHeightPx=900&key=' + encodeURIComponent(DATA.googleKey),
+            authors: (p.authorAttributions || []).map(function (a) { return { name: a.displayName || '', uri: a.uri || '' }; }) };
+        });
+        var reviews = (d.reviews || []).slice(0, 5).map(function (r) {
+          var a = r.authorAttribution || {};
+          return { rating: r.rating, when: r.relativePublishTimeDescription || '', text: ((r.text || r.originalText || {}).text) || '',
+            author: a.displayName || '', authorUri: a.uri || '', uri: r.googleMapsUri || '' };
+        });
+        return { found: true, name: (d.displayName || {}).text || '', rating: d.rating, count: d.userRatingCount,
+          uri: d.googleMapsUri || '', photos: photos, reviews: reviews };
+      });
+    }).catch(function (e) { return { error: e.message || 'Google look-up failed' }; });
+  }
+  window.HQ_STREETVIEW = function (c) {      // return_error_code: no picture here -> the image fails and is left out
+    return 'https://maps.googleapis.com/maps/api/streetview?size=640x400&radius=120&source=outdoor&fov=80&return_error_code=true&location=' +
+      c.lat.toFixed(6) + ',' + c.lng.toFixed(6) + '&key=' + encodeURIComponent(DATA.googleKey);
+  };
+
   function start() {
+    if (!DATA.googleKey) { window.HQ_STREETVIEW = null; DATA.data.meta.google = false; }
     $('login').hidden = true;
     var s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s);
     var lock = document.createElement('button');
