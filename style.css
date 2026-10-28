@@ -86,14 +86,15 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .leaflet-container { font: inherit; }
 .leaflet-control-attribution img { height: 14px; width: 14px; vertical-align: -3px; margin-right: 2px; }
 
+/* area labels = districts only (option B, 28 Oct): the map pictures already print the area names */
 .area-label {
-  pointer-events: none; white-space: nowrap; text-align: center; color: var(--ink);
-  font-family: var(--serif); font-size: 14px; font-weight: 400; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+  pointer-events: none; white-space: nowrap; text-align: center; color: var(--accent);
+  font-family: "Inter", system-ui, sans-serif; font-size: 12px; font-weight: 700; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
   transform: translate(-50%, -50%); width: max-content;
 }
-.area-label small { display: block; font-family: "Inter", system-ui, sans-serif; font-size: 10.5px; font-weight: 500; color: var(--muted); }
+.area-label small { font-size: 11px; font-weight: 500; color: var(--muted); }
 .zoom-low .area-label small { display: none; }
-.zoom-low .area-label { font-size: 12px; }
+.zoom-low .area-label { font-size: 11px; }
 
 .pin {
   display: flex; align-items: center; justify-content: center; width: 16px; height: 16px;
@@ -570,6 +571,21 @@ table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font
 .cmptable td small { display: block; font-size: 11px; color: var(--faint); font-weight: 400; }
 .cmptable td.good { color: #2e9b2d; font-weight: 700; }
 .cmptable td.bad { color: #e5483b; font-weight: 700; }
+
+/* my notes (review item 15, 28 Oct) */
+.notes .fchips button { font-size: 12px; padding: 4px 10px; }
+.nrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); }
+.nrow input, .notes textarea { font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); padding: 7px 10px; }
+.nrow input { width: 62%; box-sizing: border-box; }
+.notes textarea { width: 100%; box-sizing: border-box; resize: vertical; line-height: 1.4; }
+.stars { color: #d6d5d0; letter-spacing: 1px; font-size: 13px; }
+.stars .st.on { color: var(--star); }
+.stars.big button { font-size: 22px; line-height: 1; padding: 0 1px; border: 0; background: none; color: #d6d5d0; cursor: pointer; }
+.stars.big button.on { color: var(--star); }
+.nline { margin-top: 3px !important; }
+.ntag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #eef3ef; color: #4C7458; }
+.ntag.no { background: var(--soft); color: var(--muted); }
+.list-item.dim { opacity: 0.55; }
 
 /* ---- phone (27 Oct): compact two-row top bar; cards slide up from the bottom (bottom sheets) ---- */
 @media (max-width: 700px) {

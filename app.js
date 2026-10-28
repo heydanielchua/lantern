@@ -10,7 +10,7 @@
   var S = {
     listings: [], condos: {}, areas: {}, meta: {},
     condoView: (function () { try { return localStorage.getItem('hqCondoView') || 'list'; } catch (e) { return 'list'; } })(),
-    shortlist: [], shortAdded: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
+    shortlist: [], shortAdded: {}, notes: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
     shortView: { q: '', area: '', beds: 0, sort: 'added' },
     eview: 'all',      // ethnic groups: 'all' residents or 'private' (condo & landed estimate)
     filters: { min: 0, max: 0, sizeMin: 0, sizeMax: 0, psfMin: 0, psfMax: 0, beds: [], floor: [], types: [], tenure: [], lease: [], age: [], baths: [],
@@ -175,7 +175,8 @@
       parts[0] = Math.min(100, slope(green.m, [[300, 100], [1000, 50], [2000, 0]]) + (nb.bigPark && nb.bigPark.m <= 1000 ? 10 : 0));
       notes[0] = (green === nb.dogRun ? 'dog run ' : 'park ') + metresText(green.m) + (nb.bigPark && nb.bigPark.m <= 1000 ? ' · big park near' : '');
     }
-    if (nb.drive) { parts[1] = slope(nb.drive.min, [[15, 100], [18, 40], [20, 25], [25, 0]]); notes[1] = nb.drive.min + ' min'; }
+    var rh = rushOf(nb), car = rh && rh.am ? rh.am.min : (nb.drive && nb.drive.min);      // 8:30am drive when we have it (28 Oct)
+    if (car) { parts[1] = slope(car, [[15, 100], [18, 40], [20, 25], [25, 0]]); notes[1] = car + ' min' + (rh && rh.am ? ' at 8:30am' : ' (normal traffic)'); }
     var p = condoPsf(c);
     if (p) { parts[2] = slope(p.psf, [[1500, 100], [2000, 50], [2100, 0]]); notes[2] = full(p.psf) + ' psf'; }
     var sz = c.subzone && ((S.meta.census || {}).subzones || {})[c.subzone];
@@ -188,6 +189,12 @@
     if (left != null) {
       parts[4] = left === Infinity ? 100 : Math.min(95, slope(left, [[50, 0], [95, 85], [99, 91]]));
       notes[4] = left === Infinity ? 'freehold' : (leaseKnown(c) ? '' : '~') + left + ' yrs left' + (leaseKnown(c) ? '' : ' (est. from year built)');
+      var fm = comingNear(c, 'futuremrt', 1000)[0];            // a new MRT station coming within 1 km: up to +10 (28 Oct)
+      if (fm) {
+        var plus = Math.round(slope(fm.m, [[300, 10], [1000, 0]]));
+        parts[4] = Math.min(100, parts[4] + plus);
+        if (plus) notes[4] += ' · +' + plus + ' future MRT ' + fm.p[2];
+      }
     }
     var w = 0, t = 0;
     parts.forEach(function (v, i) { if (v != null) { w += SCORE_WEIGHTS[i]; t += v * SCORE_WEIGHTS[i]; } });
@@ -496,10 +503,20 @@
         '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a> © contributors | ' +
         '<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener">Singapore Land Authority</a>'
     }).addTo(map);
-    // OneMap draws an "INSET · Not to scale" box into its zoomed-out pictures (open sea south-east of Changi): paint over it in
-    // sea colour, inside the picture layer so it gets the same grey filter (style.css .leaflet-tile-pane)
+    // OneMap draws an "INSET · Not to scale" box into its zoomed-out pictures, in the sea — at a different spot for each picture
+    // zoom (11–12: south-east of Changi; 13: just off the East Coast). Paint over it in sea colour, inside the picture layer so it
+    // gets the same grey filter (style.css .leaflet-tile-pane). Retina screens use the next picture zoom (detectRetina).
     map.createPane('seaCover', map.getPane('tilePane')).style.zIndex = 2;
-    L.rectangle([[1.128, 103.952], [1.252, 104.115]], { pane: 'seaCover', stroke: false, fillColor: '#d4d4d4', fillOpacity: 1, interactive: false }).addTo(map);
+    var sea = { pane: 'seaCover', stroke: false, fillColor: '#d4d4d4', fillOpacity: 1, interactive: false };
+    var far = L.rectangle([[1.128, 103.952], [1.252, 104.115]], sea);
+    var near = L.polygon([[1.2872, 103.9078], [1.2872, 103.9169], [1.294, 103.9169], [1.294, 103.9395], [1.3019, 103.9395], [1.3019, 103.9724],
+      [1.294, 103.9724], [1.294, 103.9993], [1.2341, 103.9993], [1.2341, 103.9078]], sea);
+    function insetCover() {
+      var z = map.getZoom() + (L.Browser.retina ? 1 : 0);
+      [[far, z <= 12], [near, z === 13]].forEach(function (x) { if (x[1]) x[0].addTo(map); else x[0].remove(); });
+    }
+    map.on('zoomend', insetCover);
+    insetCover();
     map.on('click', closePanel);
     map.on('movestart', hidePeek);
     map.on('zoomend', zoomClass);
@@ -537,7 +554,9 @@
     }).addTo(map);
     Object.keys(S.areas).forEach(function (id) {
       var a = S.areas[id];
-      var html = '<div class="area-label">' + esc(a.name) + (a.label ? '<small>' + esc(a.label) + '</small>' : '') + '</div>';
+      if (!a.label) return;                       // option B (28 Oct): districts only — the map pictures already print the names
+      var main = a.label.split(' (')[0], part = a.label.slice(main.length);
+      var html = '<div class="area-label">' + esc(main) + (part ? '<small>' + esc(part) + '</small>' : '') + '</div>';
       L.marker(a.layer.getBounds().getCenter(), {
         interactive: false, keyboard: false,
         icon: L.divIcon({ className: '', html: html, iconSize: null })
@@ -683,9 +702,9 @@
   function scoreBlock(sc) {
     var scored = sc && sc.total != null;
     var how = 'Weights: Car to VivoCity 30 · Parks & nature 20 · Holds value 20 · Quiet area 15 · Price 15. ' +
-      'Parks: nearest park or dog run (≤300 m best, 2 km+ none), +10 for a big park within 1 km. Car: 15 min or less best, 25 min+ none. ' +
+      'Parks: nearest park or dog run (≤300 m best, 2 km+ none), +10 for a big park within 1 km. Car: drive to VivoCity leaving 8:30am (Google), else in normal traffic — 15 min or less best, 25 min+ none. ' +
       'Price: $1,500 psf or less best, $2,000 OK, $2,100+ none. Quiet: people per km² in the neighbourhood, compared with the others on the map. ' +
-      'Holds value: freehold best; 99-year from 85 (95 years left) down to 0 (50 left) — lease from URA, else estimated from the year built. Parts without data are left out.';
+      'Holds value: freehold best; 99-year from 85 (95 years left) down to 0 (50 left) — lease from URA, else estimated from the year built; up to +10 for a new MRT station coming within 1 km (≤300 m = +10). Parts without data are left out.';
     return '<div class="box"><div class="head-row"><span class="eyebrow">Condo score' + tip(how) + '</span>' +
       '<strong class="score-total">' + (scored ? sc.total + '<small>/100</small>' : '—') + '</strong></div>' +
       '<div class="score">' + spider(sc ? sc.parts.map(function (v) { return v == null ? 0 : v; }) : SCORE_AXES.map(function () { return null; }), scored) + '<div class="score-legend">' +
@@ -810,7 +829,7 @@
         var big = p === near, planned = k[0] === 'worship' && p[4];
         var label = k[0] === 'mrt' ? p[2] + (p[3] ? ' · exit ' + p[3] : '') : (k[0] === 'park' && p[3] ? p[2] + ' · ' + p[3] + ' ha' : (k[0] === 'worship' ? p[2] + (planned ? ' · planned (Master Plan 2025)' : (p[3] && p[3] !== p[2] ? ' · ' + p[3] : '')) : p[2]));
         if (k[0] === 'newproj') label = p[2] + ' · ' + n(p[3]) + ' units' + (p[4] ? ' · ready ' + p[4] : '') + (p[5] ? ' · spot approximate' : '');
-        if (k[0] === 'futuremrt') label = p[2] + ' · ' + p[3] + (p[5] ? ' (new line)' : '') + ' · opens ' + p[4];
+        if (k[0] === 'futuremrt') label = p[2] + ' · ' + p[3] + (p[5] ? ' (new line)' : '') + ' · opens ' + p[4] + (p[6] ? ' · spot approximate' : '');
         if (c) label += ' · ' + metres(Math.round(metresBetween(c.lat, c.lng, p[0], p[1])));
         if (k[0] === 'park' && p[4]) {
           L.polygon(p[4], { color: '#46B035', weight: 1.5, opacity: 0.9, fillColor: '#46B035', fillOpacity: 0.14, interactive: false }).addTo(placeLayer);
@@ -842,7 +861,7 @@
   }
   function unitsOf(list) { return list.reduce(function (t, x) { return t + ((x.p || x)[3] || 0); }, 0); }
   var PIPE_TIP = 'URA\'s list of private homes being built (latest quarter), condos and apartments only. "Ready" = URA\'s expected completion year, where given.';
-  var RAIL_TIP = 'Stations announced by LTA that aren\'t open yet; spots from URA\'s Master Plan. Opening years as announced (checked Oct 2026) — they can change.';
+  var RAIL_TIP = 'Stations announced by LTA that aren\'t open yet; spots from URA\'s Master Plan, or from news reports where URA doesn\'t have them yet ("spot approximate"). Opening years as announced (checked Oct 2026) — they can change.';
   function comingBlock(id) {
     var np = comingIn(id, 'newproj').sort(function (x, y) { return y[3] - x[3]; }), fm = comingIn(id, 'futuremrt');
     return '<div class="box"><span class="eyebrow">New projects coming' + tip(PIPE_TIP) + '</span>' +
@@ -852,7 +871,8 @@
       }).join('') + '</div>' : '<span class="empty">None in URA\'s list for this area.</span>') + '</div>' +
       '<div class="box"><span class="eyebrow">Future MRT' + tip(RAIL_TIP) + '</span>' +
       (fm.length ? '<div class="rows">' + fm.map(function (p) {
-        return '<div><span>' + esc(p[2]) + '</span><span><strong>' + esc(p[3]) + '</strong>' + (p[5] ? ' (new line)' : '') + ' · ' + esc(p[4]) + '</span></div>';
+        return '<div><span>' + esc(p[2]) + '</span><span><strong>' + esc(p[3]) + '</strong>' + (p[5] ? ' (new line)' : '') + ' · ' + esc(p[4]) +
+          (p[6] ? '<br><small class="hint">spot approximate</small>' : '') + '</span></div>';
       }).join('') + '</div>' : '<span class="empty">No new stations announced in this area.</span>') + '</div>';
   }
   // Rush-hour drive (Google, 27 Oct) — Google's rules: not shown once it's more than 30 days old
@@ -1222,7 +1242,7 @@
       ? '<div>' + esc(c.review.reviewTitle) + '</div><div class="hint">' + esc(c.review.reviewType) + '</div>' +
         '<a href="' + esc(c.review.reviewUrl) + '" target="_blank" rel="noopener">Read review →</a>'
       : '<span class="empty">No Stacked Homes review found for this condo.</span>';
-    return condoHero(c, units, groups) + workerAlert(c) + '<div id="gPhotos">' + googlePhotos(c) + '</div>' + condoShort(c, units, groups) +
+    return condoHero(c, units, groups) + notesBox(c) + workerAlert(c) + '<div id="gPhotos">' + googlePhotos(c) + '</div>' + condoShort(c, units, groups) +
       scoreBlock(c.score) +
       '<div class="grid2">' +
       '<button type="button" class="stat stat-btn" data-tab="sale">For sale<strong>' + (units.length > 1 ? 'from ' : '') + money(units[0].price) + '</strong>' +
@@ -1262,7 +1282,7 @@
     var key = tip('Middle = OneMap drive to VivoCity in normal traffic. Below: green = close (MRT ≤ 10 min walk or 800 m, hawker / supermarket ≤ 600 m), red = further.');
     var rh = rushOf(nb);
     var drive = (nb.drive ? '<b>' + nb.drive.min + ' min</b>drive to VivoCity' : '<b>—</b>' + (S.meta.onemapLogin ? 'drive time not available' : 'drive needs the OneMap login')) + key +
-      (rh && rh.am ? '<span class="rush">~' + rh.am.min + ' min at 8am</span>' : '');
+      (rh && rh.am ? '<span class="rush">~' + rh.am.min + ' min at 8:30am</span>' : '');
     return '<div class="box hero"><span class="lab">Asking from</span>' +
       '<div class="money">' + (price ? full(price) : '—') + '</div>' +
       '<div class="pills"><span class="pill">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + ' for sale</span>' +
@@ -1308,7 +1328,7 @@
     if (life.length) lines.push('<strong>Daily life:</strong> ' + life.join(' · ') + '.');
     var rh = rushOf(nb);
     if (nb && nb.drive) lines.push('<strong>' + nb.drive.min + ' min drive</strong> to VivoCity (' + nb.drive.km + ' km, normal traffic)' +
-      (rh && rh.am ? ' · about <strong>' + rh.am.min + ' min at 8am</strong>' : '') + '.');
+      (rh && rh.am ? ' · about <strong>' + rh.am.min + ' min at 8:30am</strong>' : '') + '.');
     var fm = comingNear(c, 'futuremrt', 1000)[0], np = comingNear(c, 'newproj', 1000);
     if (fm) lines.push('<strong>New MRT coming:</strong> ' + esc(fm.p[2]) + ' (' + esc(fm.p[3]) + ', ' + esc(fm.p[4]) + '), ' + metres(fm.m) + ' away.');
     if (unitsOf(np) >= 500) lines.push('<strong>' + n(unitsOf(np)) + ' new homes</strong> being built within 1 km — more competition when renting out or selling.');
@@ -1334,7 +1354,7 @@
       [nb.mrt2 ? esc(nb.mrt2.station) + ' ' + metres(nb.mrt2.m) : '', listed].filter(Boolean).join('<br>')) : row('MRT', soon('none found'));
     var fm = comingNear(c, 'futuremrt', 2000), np = comingNear(c, 'newproj', 1000), rh = rushOf(nb);
     var future = row('Future MRT' + tip(RAIL_TIP), fm[0] ? esc(fm[0].p[2]) + ' · <strong>' + metres(fm[0].m) + '</strong>' : soon('none announced within 2 km'),
-      fm.slice(0, 2).map(function (x, i) { return (i ? esc(x.p[2]) + ' ' + metres(x.m) + ' · ' : '') + esc(x.p[3]) + (x.p[5] ? ' (new line)' : '') + ', opens ' + esc(x.p[4]); }).join('<br>'));
+      fm.slice(0, 2).map(function (x, i) { return (i ? esc(x.p[2]) + ' ' + metres(x.m) + ' · ' : '') + esc(x.p[3]) + (x.p[5] ? ' (new line)' : '') + ', opens ' + esc(x.p[4]) + (x.p[6] ? ' (spot approximate)' : ''); }).join('<br>'));
     var building = row('New projects' + tip(PIPE_TIP + ' Lots of new homes nearby can mean more competition when renting out or selling.'),
       np.length ? '<strong>' + np.length + '</strong> within 1 km · ' + n(unitsOf(np)) + ' units' : soon('none within 1 km'),
       np.slice(0, 3).map(function (x) { return esc(x.p[2]) + ' ' + metres(x.m) + (x.p[4] ? ' · ready ' + x.p[4] : '') + (x.p[5] ? ' (spot approximate)' : ''); }).join('<br>'));
@@ -1353,9 +1373,9 @@
       row('Supermarket', nb.supermarket ? esc(nb.supermarket.name) + ' · <strong>' + metres(nb.supermarket.m) + '</strong>' : soon('none found'), nb.supermarket ? esc(nb.supermarket.street) : '') +
       workerRows(nb, row) + building +
       row('Drive to VivoCity', nb.drive ? '<strong>' + nb.drive.min + ' min</strong> · ' + nb.drive.km + ' km' +
-        tip('OneMap driving route to VivoCity\'s main entrance, in normal traffic. Rush hour = Google\'s traffic prediction for an ordinary weekday: to VivoCity leaving 8am, home leaving 6pm (refreshed every 30 days).') :
+        tip('OneMap driving route to VivoCity\'s main entrance, in normal traffic. Rush hour = Google\'s traffic prediction for an ordinary weekday: to VivoCity leaving 8:30am, home leaving 6pm (refreshed every 30 days).') :
         soon(S.meta.onemapLogin ? 'not available' : 'needs the OneMap login'),
-        rh ? 'Rush hour: ' + (rh.am ? '<strong>' + rh.am.min + ' min</strong> leaving 8am' : '') + (rh.am && rh.pm ? ' · ' : '') +
+        rh ? 'Rush hour: ' + (rh.am ? '<strong>' + rh.am.min + ' min</strong> leaving 8:30am' : '') + (rh.am && rh.pm ? ' · ' : '') +
           (rh.pm ? '<strong>' + rh.pm.min + ' min</strong> home at 6pm' : '') : '') +
       '</div></div>';
   }
@@ -1555,6 +1575,13 @@
   function onPanelClick(e) {
     var t = e.target.closest('button');
     if (!t) return;
+    if ((t.dataset.nstatus || t.dataset.nstar) && S.panel && S.panel.condo) {          // my notes: status / rating
+      var x = noteOf(S.panel.condo) || {}, body = $('detail').querySelector('.card-body'), y0 = body.scrollTop;
+      if (t.dataset.nstatus) setNote(S.panel.condo, { status: x.status === t.dataset.nstatus ? '' : t.dataset.nstatus });
+      else setNote(S.panel.condo, { rating: x.rating === +t.dataset.nstar ? 0 : +t.dataset.nstar });
+      renderPanel(); $('detail').querySelector('.card-body').scrollTop = y0;
+      return;
+    }
     if (t.dataset.action === 'close') closePanel();
     else if (t.dataset.action === 'back') openArea(S.panel.area, 'condos');
     else if (t.dataset.action === 'star') { var y4 = $('detail').querySelector('.card-body').scrollTop; toggleShort(S.panel.condo); $('detail').querySelector('.card-body').scrollTop = y4; }
@@ -1776,8 +1803,9 @@
     $('shortItems').innerHTML = (items.length ? items.map(function (k) {
       var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
       var on = S.panel && S.panel.condo === k;
-      return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-        '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small></span>' +
+      var no = noteOf(k) && noteOf(k).status === 'no';
+      return '<button type="button" class="list-item' + (on ? ' on' : '') + (no ? ' dim' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
+        '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small>' + noteTag(k) + '</span>' +
         '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') + scoreTag(c) + '</span></span></button>';
     }).join('') : (gone.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
       gone.map(function (k) {      // every unit was sold / taken down since: kept, greyed, until you remove it
@@ -1789,6 +1817,49 @@
     $('shortCount').textContent = all.length + gone.length;
     $('btnCompare').hidden = all.length < 2;
     if (S.compare) renderCompare();
+  }
+
+  // ---- my notes per condo (review item 15, built 28 Oct) ----------------------------------
+  // Kept on this Mac only (data/notes.json via /api/notes) — not in the online copy and not shared (Daniel, 28 Oct).
+  var NOTE_STATUS = [['toview', 'To view'], ['booked', 'Viewing booked'], ['viewed', 'Viewed'], ['no', 'Not for us']];
+  function notesOn() { return !window.HQ_API; }
+  function noteOf(k) { return S.notes[k] || null; }
+  function starsHtml(r) { var out = ''; for (var i = 1; i <= 5; i++) out += '<span class="st' + (i <= r ? ' on' : '') + '">★</span>'; return '<span class="stars">' + out + '</span>'; }
+  function niceDate(d) { var t = d ? new Date(d + 'T00:00:00') : null; return t && !isNaN(t) ? t.toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' }) : ''; }
+  function statusText(v) { return (NOTE_STATUS.filter(function (x) { return x[0] === v; })[0] || [0, ''])[1]; }
+  function noteTag(k) {                  // the small line under a condo on the shortlist
+    var x = noteOf(k);
+    if (!x) return '';
+    if (x.status === 'no') return '<small class="nline"><span class="ntag no">Not for us</span></small>';
+    if (x.status === 'booked') return '<small class="nline"><span class="ntag">' + (x.date ? 'Viewing ' + esc(niceDate(x.date)) : 'Viewing booked') + '</span></small>';
+    if (x.rating) return '<small class="nline">' + starsHtml(x.rating) + '</small>';
+    return x.status ? '<small class="nline"><span class="ntag">' + statusText(x.status) + '</span></small>' : '';
+  }
+  function notesBox(c) {
+    if (!notesOn()) return '';
+    var x = noteOf(c.key) || {}, stars = '';
+    for (var i = 1; i <= 5; i++) stars += '<button type="button" class="st' + (i <= (x.rating || 0) ? ' on' : '') + '" data-nstar="' + i + '" aria-label="' + i + ' star' + (i > 1 ? 's' : '') + '">★</button>';
+    return '<div class="box notes"><div class="head-row"><span class="eyebrow">My notes' + tip('Only on this Mac — not in the online copy. Saved as you type.') + '</span>' +
+      '<span class="hint" id="noteSaved">' + (x.updated ? 'Saved' : '') + '</span></div>' +
+      '<div class="fchips">' + NOTE_STATUS.map(function (v) { return '<button type="button" data-nstatus="' + v[0] + '" aria-pressed="' + (x.status === v[0]) + '">' + v[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="nrow"><span>My rating</span><span class="stars big">' + stars + '</span></div>' +
+      '<label class="nrow"><span>Viewing</span><input type="date" data-nfield="date" value="' + esc(x.date || '') + '"></label>' +
+      '<label class="nrow"><span>Agent</span><input type="text" data-nfield="agent" placeholder="Name · phone" value="' + esc(x.agent || '') + '"></label>' +
+      '<label class="sr-only" for="noteText">Notes</label><textarea id="noteText" data-nfield="text" rows="3" placeholder="What you noticed — noise, view, facilities, light…">' + esc(x.text || '') + '</textarea></div>';
+  }
+  function setNote(key, change) {
+    var x = noteOf(key) || {};
+    Object.keys(change).forEach(function (f) { x[f] = change[f]; });
+    x.updated = new Date().toISOString();
+    S.notes[key] = x;
+    var el = $('noteSaved'); if (el) el.textContent = 'Saving…';
+    clearTimeout(setNote.timer);
+    setNote.timer = setTimeout(function () {
+      api('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.notes) })
+        .then(function (r) { if (!r || r.error) throw new Error(); var e2 = $('noteSaved'); if (e2) e2.textContent = 'Saved'; })
+        .catch(function () { var e3 = $('noteSaved'); if (e3) e3.textContent = 'Couldn\'t save — is the HomeQuest window still open?'; });
+    }, 500);
+    renderShortlist();
   }
 
   // ---- compare the shortlist side by side (review item 14, mock-up OK'd 28 Oct) ---------
@@ -1814,7 +1885,7 @@
       hawker: nb.hawkers && nb.hawkers[0] ? nb.hawkers[0].m : null, shop: nb.supermarket ? nb.supermarket.m : null,
       park: nb.park ? nb.park.m : null, dog: nb.dogRun ? nb.dogRun.m : null,
       busy: sz && sz.perKm2, rent: rentLevel(c), newUnits: unitsOf(comingNear(c, 'newproj', 1000)),
-      days: days.length ? Math.floor(Math.max.apply(null, days)) : null, watch: watch
+      days: days.length ? Math.floor(Math.max.apply(null, days)) : null, watch: watch, note: noteOf(c.key)
     };
   }
   function dist(x) { return x != null ? metres(x) : '—'; }
@@ -1832,7 +1903,7 @@
       ['Size of estate', 'size', function (x) { return x ? n(x) + ' units' : '—'; }, null]]],
     ['Getting around', [
       ['Drive to VivoCity', 'drive', function (x) { return x ? x + ' min' : '—'; }, 'low'],
-      ['…at 8am (rush hour)', 'rush', function (x) { return x ? x + ' min' : '—'; }, 'low'],
+      ['…at 8:30am (rush hour)', 'rush', function (x) { return x ? x + ' min' : '—'; }, 'low'],
       ['Walk to MRT', 'mrt', function (x, f) { return x != null ? (f.mrtGuess ? '~' : '') + x + ' min<small>' + esc(f.mrtName || '') + '</small>' : '—'; }, 'low'],
       ['Future MRT', 'future', function (x) { return x ? esc(x.p[2]) + ' · ' + metres(x.m) + '<small>' + esc(x.p[3]) + ', ' + esc(x.p[4]) + '</small>' : '—'; }, null]]],
     ['Daily life', [['Hawker', 'hawker', dist, 'low'], ['Supermarket', 'shop', dist, 'low'], ['Park', 'park', dist, 'low'], ['Dog run', 'dog', dist, 'low']]],
@@ -1868,7 +1939,10 @@
         '<div class="csub">' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</div>' +
         '<div class="cscore"><b>' + (facts[i].score != null ? facts[i].score : '—') + '</b><span>score</span></div></th>';
     }).join('') + '</tr>';
-    var body = COMPARE_ROWS.map(function (g) {
+    var rows = COMPARE_ROWS.concat(notesOn() ? [['My notes', [
+      ['Status', 'note', function (x) { return x && x.status ? statusText(x.status) + (x.status === 'booked' && x.date ? '<small>' + esc(niceDate(x.date)) + '</small>' : '') : '—'; }, null],
+      ['My rating', 'note', function (x) { return x && x.rating ? starsHtml(x.rating) : '—'; }, null]]]] : []);
+    var body = rows.map(function (g) {
       return '<tr class="grp"><td colspan="' + (cs.length + 1) + '"><span>' + g[0] + '</span></td></tr>' + g[1].map(function (r) {
         var m = marks(r[1], r[3]);
         return '<tr><td class="lab">' + r[0] + '</td>' + facts.map(function (f) {
@@ -2140,6 +2214,9 @@
     $('detail').addEventListener('scroll', function (e) { if (e.target.classList && e.target.classList.contains('gphotos')) photoStripMoved(e.target); }, true);
     $('detail').addEventListener('input', function (e) {
       if (e.target.id === 'areaQ' && S.panel) { S.panel.q = e.target.value.trim(); $('areaList').innerHTML = areaCondoList(S.panel.area); }
+      if (e.target.dataset && e.target.dataset.nfield && S.panel && S.panel.condo) {          // my notes: date, agent, text
+        var change = {}; change[e.target.dataset.nfield] = e.target.value; setNote(S.panel.condo, change);
+      }
     });
     $('detail').addEventListener('change', function (e) {
       if (e.target.id === 'areaSort' && S.panel) { S.panel.sort = e.target.value; $('areaList').innerHTML = areaCondoList(S.panel.area); }
@@ -2150,7 +2227,9 @@
       var b = e.target.closest('button[data-condo]');
       if (b) openCondo(b.dataset.condo, { fly: true });
     });
-    Promise.all([api('/api/data'), api('/api/areas'), api('/api/shortlist')]).then(function (r) {
+    Promise.all([api('/api/data'), api('/api/areas'), api('/api/shortlist'),
+      notesOn() ? api('/api/notes').catch(function () { return {}; }) : Promise.resolve({})]).then(function (r) {
+      S.notes = r[3] && !r[3].error ? r[3] : {};
       // listings the newest full robot run didn't see are sold / taken down: hidden (kept only to label old shortlist items)
       S.listings = r[0].listings.filter(function (l) { return !l.gone; });
       S.gone = {};
