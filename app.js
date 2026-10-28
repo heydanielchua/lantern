@@ -715,13 +715,24 @@
     if (phone()) setLeft(false);
     refreshPin(prev);
     refreshPin(key);
-    // zoom so the 1 km ring of places fits beside the card
-    if (c.lat != null) map.flyToBounds(L.latLng(c.lat, c.lng).toBounds(2300), cardRoom({ paddingTopLeft: [20, 70], paddingBottomRight: [470, 20], maxZoom: 16, duration: 0.6 }));
+    if (c.lat != null) showOnMap(c, opts && opts.fly);
     hidePeek();
     renderPanel();
     restyle();
     renderShortlist();
     drawPlaces();
+  }
+
+  // Moving the map to an opened condo (zoom fix option A, 28 Oct). From search, the shortlist or a list: zoom so its 1 km
+  // ring of places fits beside the card. A pin clicked on the map keeps your zoom — the map only slides if the card (or the
+  // screen edge) would hide the condo, and zooms in only when you're zoomed right out (all of Singapore).
+  var ZOOMED_OUT = 13;
+  function showOnMap(c, fly) {
+    var room = cardRoom({ paddingTopLeft: [20, 70], paddingBottomRight: [470, 20], maxZoom: 16, duration: 0.6 });
+    if (fly || map.getZoom() < ZOOMED_OUT) return map.flyToBounds(L.latLng(c.lat, c.lng).toBounds(2300), room);
+    var p = map.latLngToContainerPoint([c.lat, c.lng]), size = map.getSize(), tl = room.paddingTopLeft, br = room.paddingBottomRight;
+    var clear = p.x >= tl[0] + 40 && p.y >= tl[1] + 40 && p.x <= size.x - br[0] - 40 && p.y <= size.y - br[1] - 40;
+    if (!clear) map.panBy([p.x - (tl[0] + size.x - br[0]) / 2, p.y - (tl[1] + size.y - br[1]) / 2], { duration: 0.4 });     // to the middle of the free part
   }
 
   function closePanel() {
