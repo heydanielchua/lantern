@@ -1776,6 +1776,119 @@
           '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
       }).join('');
     $('shortCount').textContent = all.length + gone.length;
+    $('btnCompare').hidden = all.length < 2;
+    if (S.compare) renderCompare();
+  }
+
+  // ---- compare the shortlist side by side (review item 14, mock-up OK'd 28 Oct) ---------
+  // One column per shortlisted condo (up to 5); in each row the best is green and the weakest red.
+  var COMPARE_MAX = 5, RENT_TEXT = { low: 'Mostly owners', mid: 'Mixed', high: 'Rental-heavy' };
+  function compareFacts(c) {
+    var u = shown(c).length ? shown(c) : c.units, nb = c.near || {}, rh = rushOf(nb), groups = sameUnits(u);
+    var diffs = groups.map(function (g) { return vsUra(g[0], c); }).filter(Boolean).map(function (v) { return v.pct; });
+    var sz = c.subzone && ((S.meta.census || {}).subzones || {})[c.subzone];
+    var days = u.map(function (l) { return daysAgo(l.listedOn || l.firstSeen); }).filter(function (d) { return d < Infinity; });
+    var watch = [nb.dorm && nb.dorm.m <= WORKERS_CLOSE ? 'dormitory ' + metres(nb.dorm.m) : '',
+      nb.worship && nb.worship.m <= WORSHIP_CLOSE ? 'worship ' + metres(nb.worship.m) : '',
+      nb.worshipPlanned && nb.worshipPlanned.m <= WORKERS_CLOSE ? 'planned worship ' + metres(nb.worshipPlanned.m) : '',
+      nb.spot && nb.spot.m <= WORKERS_CLOSE ? 'gathering spot ' + metres(nb.spot.m) : ''].filter(Boolean);
+    return {
+      score: c.score ? c.score.total : null, price: u[0].price, psf: median(u.map(function (l) { return l.psf; })),
+      vs: diffs.length ? Math.round(median(diffs)) : null, units: groups.length,
+      drops: groups.filter(function (g) { return priceMove(g) < 0; }).length,
+      lease: leaseLeft(c), built: c.built, size: c.mcst && c.mcst.units,
+      drive: nb.drive && nb.drive.min, rush: rh && rh.am && rh.am.min,
+      mrt: nb.mrt ? (nb.mrt.walkMin || Math.round(nb.mrt.m / 80)) : null, mrtGuess: !!(nb.mrt && !nb.mrt.walkMin), mrtName: nb.mrt && nb.mrt.station,
+      future: comingNear(c, 'futuremrt', 2000)[0] || null,
+      hawker: nb.hawkers && nb.hawkers[0] ? nb.hawkers[0].m : null, shop: nb.supermarket ? nb.supermarket.m : null,
+      park: nb.park ? nb.park.m : null, dog: nb.dogRun ? nb.dogRun.m : null,
+      busy: sz && sz.perKm2, rent: rentLevel(c), newUnits: unitsOf(comingNear(c, 'newproj', 1000)),
+      days: days.length ? Math.floor(Math.max.apply(null, days)) : null, watch: watch
+    };
+  }
+  function dist(x) { return x != null ? metres(x) : '—'; }
+  // [group, [[label, fact, how to show it, which is better: 'low' / 'high' / null]]]
+  var COMPARE_ROWS = [
+    ['Price', [
+      ['Asking from', 'price', money, 'low'],
+      ['Typical $psf', 'psf', function (x) { return x ? full(x) : '—'; }, 'low'],
+      ['vs recent URA sales', 'vs', function (x) { return x == null ? '—' : (x > 0 ? '+' : '') + x + '%'; }, 'low'],
+      ['Units for sale', 'units', function (x) { return x; }, null],
+      ['Price drops', 'drops', function (x) { return x ? '▼ ' + x : '—'; }, null]]],
+    ['Home', [
+      ['Lease left', 'lease', function (x) { return x === Infinity ? 'Freehold' : (x != null ? x + ' yrs' : '—'); }, 'high'],
+      ['Built', 'built', function (x) { return x || '—'; }, 'high'],
+      ['Size of estate', 'size', function (x) { return x ? n(x) + ' units' : '—'; }, null]]],
+    ['Getting around', [
+      ['Drive to VivoCity', 'drive', function (x) { return x ? x + ' min' : '—'; }, 'low'],
+      ['…at 8am (rush hour)', 'rush', function (x) { return x ? x + ' min' : '—'; }, 'low'],
+      ['Walk to MRT', 'mrt', function (x, f) { return x != null ? (f.mrtGuess ? '~' : '') + x + ' min<small>' + esc(f.mrtName || '') + '</small>' : '—'; }, 'low'],
+      ['Future MRT', 'future', function (x) { return x ? esc(x.p[2]) + ' · ' + metres(x.m) + '<small>' + esc(x.p[3]) + ', ' + esc(x.p[4]) + '</small>' : '—'; }, null]]],
+    ['Daily life', [['Hawker', 'hawker', dist, 'low'], ['Supermarket', 'shop', dist, 'low'], ['Park', 'park', dist, 'low'], ['Dog run', 'dog', dist, 'low']]],
+    ['Neighbourhood', [
+      ['How busy (people / km²)', 'busy', function (x) { return x ? n(x) : '—'; }, 'low'],
+      ['Renting level', 'rent', function (x) { return RENT_TEXT[x] || '—'; }, null],
+      ['New homes being built ≤ 1 km', 'newUnits', function (x) { return x ? n(x) + ' units' : 'none'; }, 'low'],
+      ['Watch-outs', 'watch', function (x) { return x.length ? x.join('<br>') : '<span class="ok-text">none</span>'; }, null]]],
+    ['On the market', [['Longest listed', 'days', function (x) { return x != null ? x + ' days' : '—'; }, null]]]
+  ];
+  function comparePool() {
+    return S.shortlist.filter(function (k) { return S.condos[k]; })
+      .sort(function (x, y) { return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || ''); });     // newest added first
+  }
+  function openCompare() { S.compare = { keys: comparePool().slice(0, COMPARE_MAX), pick: false }; renderCompare(); }
+  function closeCompare() { S.compare = null; $('compare').hidden = true; }
+  function renderCompare() {
+    var el = $('compare'), pool = comparePool();
+    if (pool.length < 2) return closeCompare();
+    var keys = S.compare.keys.filter(function (k) { return pool.indexOf(k) >= 0; });
+    if (!keys.length) keys = pool.slice(0, COMPARE_MAX);
+    S.compare.keys = keys;
+    var cs = keys.map(function (k) { return S.condos[k]; }), facts = cs.map(compareFacts);
+    function marks(key, better) {           // the best and the weakest value in a row (none if they're all the same)
+      var vals = facts.map(function (f) { return f[key] === Infinity ? 1e9 : f[key]; }).filter(function (v) { return v != null; });
+      if (!better || vals.length < 2) return {};
+      var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+      return lo === hi ? {} : (better === 'low' ? { good: lo, bad: hi } : { good: hi, bad: lo });
+    }
+    var head = '<tr><th></th>' + cs.map(function (c, i) {
+      var a = S.areas[c.area] || {};
+      return '<th><button type="button" class="cname" data-open="' + esc(c.key) + '">' + esc(c.name) + '</button>' +
+        '<div class="csub">' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</div>' +
+        '<div class="cscore"><b>' + (facts[i].score != null ? facts[i].score : '—') + '</b><span>score</span></div></th>';
+    }).join('') + '</tr>';
+    var body = COMPARE_ROWS.map(function (g) {
+      return '<tr class="grp"><td colspan="' + (cs.length + 1) + '"><span>' + g[0] + '</span></td></tr>' + g[1].map(function (r) {
+        var m = marks(r[1], r[3]);
+        return '<tr><td class="lab">' + r[0] + '</td>' + facts.map(function (f) {
+          var v = f[r[1]] === Infinity ? 1e9 : f[r[1]];
+          var cls = r[3] && v != null ? (v === m.good ? 'good' : (v === m.bad ? 'bad' : '')) : '';
+          return '<td class="' + cls + '">' + r[2](f[r[1]], f) + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+    }).join('');
+    var pick = S.compare.pick ? '<div class="cmp-pick"><div class="fchips">' + pool.map(function (k) {
+      return '<button type="button" data-cmp="' + esc(k) + '" aria-pressed="' + (keys.indexOf(k) >= 0) + '">' + esc(S.condos[k].name) + '</button>';
+    }).join('') + '</div><span class="hint">Up to ' + COMPARE_MAX + ' at a time.</span></div>' : '';
+    var old = el.querySelector('.card-body'), x = old ? old.scrollLeft : 0, y = old ? old.scrollTop : 0;
+    el.innerHTML = '<div class="card-head"><div><div class="title">Compare</div><div class="sub">' + cs.length + ' condos from your shortlist · green = best, red = weakest in each row</div></div>' +
+      '<div class="head-row"><button type="button" class="btn" data-cmp-pick aria-expanded="' + S.compare.pick + '">Choose<span class="wide-only"> condos</span> ▾</button>' +
+      '<button type="button" class="icon-btn" data-cmp-close aria-label="Close">×</button></div></div>' + pick +
+      '<div class="card-body"><table class="cmptable"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+    el.querySelector('.card-body').scrollLeft = x; el.querySelector('.card-body').scrollTop = y;
+    el.hidden = false;
+  }
+  function onCompareClick(e) {
+    var b = e.target.closest('button');
+    if (!b || !S.compare) return;
+    if (b.hasAttribute('data-cmp-close')) closeCompare();
+    else if (b.hasAttribute('data-cmp-pick')) { S.compare.pick = !S.compare.pick; renderCompare(); }
+    else if (b.dataset.open) { var k = b.dataset.open; closeCompare(); openCondo(k, { fly: true }); }
+    else if (b.dataset.cmp) {
+      var keys = S.compare.keys, i = keys.indexOf(b.dataset.cmp);
+      if (i >= 0) { if (keys.length > 1) keys.splice(i, 1); } else if (keys.length < COMPARE_MAX) keys.push(b.dataset.cmp);
+      renderCompare();
+    }
   }
   function shortDate(d) {
     var t = d ? new Date(d + 'T00:00:00') : null;
@@ -2008,6 +2121,9 @@
     setupTooltips();
     $('btnShortlist').addEventListener('click', function () { setLeft(!$('shortlist').classList.contains('open')); });
     $('hideShortlist').addEventListener('click', function () { setLeft(false); });
+    $('btnCompare').addEventListener('click', openCompare);
+    $('compare').addEventListener('click', onCompareClick);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.compare) closeCompare(); });
     $('detail').addEventListener('click', onPanelClick);
     setupPlaceLegend();
     $('detail').addEventListener('scroll', function (e) { if (e.target.classList && e.target.classList.contains('gphotos')) photoStripMoved(e.target); }, true);

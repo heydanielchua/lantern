@@ -544,6 +544,33 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .list-item.gone .srow { align-items: center; }
 .list-item.gone .link-btn { margin-left: auto; font-size: 12px; }
 
+/* compare the shortlist side by side (review item 14, 28 Oct) */
+.cmp-btn { min-height: 30px; padding: 0 12px; font-size: 12px; font-weight: 600; margin-left: auto; margin-right: 6px; }
+.card.compare { left: 16px; right: 16px; width: auto; transform: none; z-index: 1001; }
+.map-wrap.left-open .card.compare { left: 312px; }
+.card.compare[hidden] { display: none; }
+.compare .card-head { align-items: center; }
+.cmp-pick { padding: 0 16px 10px; display: flex; flex-direction: column; gap: 4px; }
+.compare .card-body { overflow: auto; padding: 0 0 14px; }        /* no padding: the fixed name row / label column sit flush */
+table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+.cmptable th, .cmptable td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.cmptable th { position: sticky; top: 0; background: #f8f8f6; z-index: 2; border-bottom: 1px solid var(--edge); min-width: 150px; }
+.cmptable th:first-child, .cmptable td.lab { position: sticky; left: 0; background: #f8f8f6; z-index: 1; color: var(--muted); min-width: 170px; padding-left: 16px; }
+.cmptable th:first-child { z-index: 3; }
+.cmptable .cname { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: var(--ink);
+  font-family: var(--serif); font-size: 21px; font-weight: 400; line-height: 1.1; }
+.cmptable .cname:hover { text-decoration: underline; text-decoration-color: var(--faint); }
+.cmptable .csub { font-size: 12px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.cmptable .cscore { display: flex; align-items: baseline; gap: 5px; margin-top: 8px; }
+.cmptable .cscore b { font-family: var(--serif); font-size: 30px; font-weight: 400; color: var(--ink); }
+.cmptable .cscore span { font-size: 11px; color: var(--faint); font-weight: 500; }
+.cmptable tr.grp td { font-size: 12px; font-weight: 700; color: var(--ink); padding-top: 16px; border-bottom: 1px solid var(--edge); }
+.cmptable tr.grp td span { position: sticky; left: 16px; }
+.compare .head-row .btn { white-space: nowrap; }
+.cmptable td small { display: block; font-size: 11px; color: var(--faint); font-weight: 400; }
+.cmptable td.good { color: #2e9b2d; font-weight: 700; }
+.cmptable td.bad { color: #e5483b; font-weight: 700; }
+
 /* ---- phone (27 Oct): compact two-row top bar; cards slide up from the bottom (bottom sheets) ---- */
 @media (max-width: 700px) {
   .topnav { flex-wrap: wrap; padding: 8px 10px; gap: 6px 8px; }
@@ -568,6 +595,10 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
   .place-legend .pl-title { width: auto; flex: 0 0 auto; }
   .place-legend button { flex: 0 0 auto; }
   .peek { display: none; }
+  .card.compare, .map-wrap.left-open .card.compare { top: 0; bottom: 0; left: 0; right: 0; height: auto; border-radius: 0; }
+  .cmptable th { min-width: 130px; }
+  .cmptable th:first-child, .cmptable td.lab { min-width: 108px; }
+  .cmptable .cname { font-size: 18px; }
   .tabs { flex-wrap: nowrap; gap: 4px; }
   .tabs button { padding-left: 10px; padding-right: 10px; font-size: 13px; white-space: nowrap; }
   .dock { flex-wrap: nowrap; padding: 8px 10px 12px; }
