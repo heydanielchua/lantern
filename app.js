@@ -1820,9 +1820,9 @@
   }
 
   // ---- my notes per condo (review item 15, built 28 Oct) ----------------------------------
-  // Kept on this Mac only (data/notes.json via /api/notes) — not in the online copy and not shared (Daniel, 28 Oct).
+  // Saved on the Mac (data/notes.json via /api/notes) and, scrambled, in the online copy (notes.bin) — Daniel, 28 Oct.
   var NOTE_STATUS = [['toview', 'To view'], ['booked', 'Viewing booked'], ['viewed', 'Viewed'], ['no', 'Not for us']];
-  function notesOn() { return !window.HQ_API; }
+  function notesOn() { return true; }
   function noteOf(k) { return S.notes[k] || null; }
   function starsHtml(r) { var out = ''; for (var i = 1; i <= 5; i++) out += '<span class="st' + (i <= r ? ' on' : '') + '">★</span>'; return '<span class="stars">' + out + '</span>'; }
   function niceDate(d) { var t = d ? new Date(d + 'T00:00:00') : null; return t && !isNaN(t) ? t.toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' }) : ''; }
@@ -1839,7 +1839,7 @@
     if (!notesOn()) return '';
     var x = noteOf(c.key) || {}, stars = '';
     for (var i = 1; i <= 5; i++) stars += '<button type="button" class="st' + (i <= (x.rating || 0) ? ' on' : '') + '" data-nstar="' + i + '" aria-label="' + i + ' star' + (i > 1 ? 's' : '') + '">★</button>';
-    return '<div class="box notes"><div class="head-row"><span class="eyebrow">My notes' + tip('Only on this Mac — not in the online copy. Saved as you type.') + '</span>' +
+    return '<div class="box notes"><div class="head-row"><span class="eyebrow">My notes' + tip('Saved on the Mac mini and, scrambled, in the online copy — anyone with the online password can read them. Saved as you type.') + '</span>' +
       '<span class="hint" id="noteSaved">' + (x.updated ? 'Saved' : '') + '</span></div>' +
       '<div class="fchips">' + NOTE_STATUS.map(function (v) { return '<button type="button" data-nstatus="' + v[0] + '" aria-pressed="' + (x.status === v[0]) + '">' + v[1] + '</button>'; }).join('') + '</div>' +
       '<div class="nrow"><span>My rating</span><span class="stars big">' + stars + '</span></div>' +
@@ -1858,7 +1858,7 @@
       api('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.notes) })
         .then(function (r) { if (!r || r.error) throw new Error(); var e2 = $('noteSaved'); if (e2) e2.textContent = 'Saved'; })
         .catch(function () { var e3 = $('noteSaved'); if (e3) e3.textContent = 'Couldn\'t save — is the HomeQuest window still open?'; });
-    }, 500);
+    }, window.HQ_API ? 2000 : 500);              // online: each save is a GitHub upload, so wait for a pause in typing
     renderShortlist();
   }
 

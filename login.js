@@ -1,7 +1,7 @@
 /* Lantern — the online copy of HomeQuest (GitHub Pages).
    The listings and the shortlist are stored scrambled (AES-GCM, key made from your password with
    PBKDF2). This page unscrambles them in the browser after you log in, then starts the normal app.
-   The shortlist is saved back to GitHub with your GitHub key (a fine-grained token that can only
+   The shortlist and my notes are saved back to GitHub with your GitHub key (a fine-grained token that can only
    write to this one repository). Nothing here is sent anywhere else. */
 (function () {
   'use strict';
@@ -43,9 +43,9 @@
   }
 
   // ---- the shortlist file on GitHub ------------------------------------------------------------
-  var API = function () { return (window.HQ_GITHUB_API || 'https://api.github.com') + '/repos/' + CFG.repo + '/contents/shortlist.bin'; };
-  function gh(method, body) {
-    return fetch(API() + (method === 'GET' ? '?t=' + Date.now() : ''), {
+  var API = function (file) { return (window.HQ_GITHUB_API || 'https://api.github.com') + '/repos/' + CFG.repo + '/contents/' + (file || 'shortlist.bin'); };
+  function gh(method, body, file) {
+    return fetch(API(file) + (method === 'GET' ? '?t=' + Date.now() : ''), {
       method: method, cache: 'no-store',
       headers: Object.assign({ 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
         TOKEN ? { 'Authorization': 'Bearer ' + TOKEN } : {}),
@@ -93,6 +93,53 @@
       return items;
     }).catch(function () { notice('No internet — the shortlist wasn\'t saved.'); return items; });
   }
+
+  // ---- my notes on GitHub (notes.bin, 28 Oct) — like the shortlist; merged per condo, the newest change wins ----
+  var noteSha = null, noteBase = null;
+  function filled(n) { return n && (n.status || n.rating || n.date || n.agent || n.text); }
+  function mergeNotes(mine, theirs, base) {   // same 3-way merge as the Mac (lantern.merge_notes)
+    var out = {}, keys = {};
+    base = base || {};
+    Object.keys(mine).concat(Object.keys(theirs)).forEach(function (k) { keys[k] = 1; });
+    Object.keys(keys).forEach(function (k) {
+      var a = mine[k], b = theirs[k], o = base[k];
+      if (a && b) out[k] = (a.updated || '') >= (b.updated || '') ? a : b;
+      else if (a) { if (!(o && o.updated === a.updated)) out[k] = a; }
+      else if (b) { if (!(o && o.updated === b.updated)) out[k] = b; }
+    });
+    return out;
+  }
+  function readNotes() {
+    if (!TOKEN) {
+      return fetch('notes.bin?t=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.arrayBuffer().then(open) : {}; }).catch(function () { return {}; });
+    }
+    return gh('GET', null, 'notes.bin').then(function (r) {
+      if (r.status === 404) { noteSha = null; return {}; }
+      if (!r.ok) throw new Error('GitHub said ' + r.status);
+      return r.json().then(function (j) { noteSha = j.sha; return open(unb64(j.content.replace(/\s/g, '')).buffer); })
+        .then(function (notes) { noteBase = notes; return notes; });
+    });
+  }
+  function saveNotes(notes, retry) {
+    var clean = {};
+    Object.keys(notes).forEach(function (k) { if (filled(notes[k])) clean[k] = notes[k]; });
+    if (!TOKEN) { notice('Notes not saved — log in with your GitHub key to save them.'); return Promise.resolve({ error: 'no key' }); }
+    return seal(clean).then(function (bytes) {
+      var body = { message: 'Notes updated', content: b64(bytes) };
+      if (noteSha) body.sha = noteSha;
+      return gh('PUT', body, 'notes.bin');
+    }).then(function (r) {
+      if (r.ok) return r.json().then(function (j) { noteSha = j.content.sha; noteBase = clean; if (!retry) notice(''); return clean; });
+      if ((r.status === 409 || r.status === 422) && !retry) {      // changed elsewhere: merge with the latest, save again
+        var base = noteBase;
+        return readNotes().then(function (theirs) { return saveNotes(mergeNotes(clean, theirs, base), true); });
+      }
+      notice(r.status === 401 || r.status === 403 ? 'GitHub refused the key — check it can write to ' + CFG.repo + '.' : 'Couldn\'t save the notes to GitHub (' + r.status + ').');
+      return { error: 'GitHub said ' + r.status };
+    }).catch(function () { notice('No internet — the notes weren\'t saved.'); return { error: 'offline' }; });
+  }
+
   function notice(text) {
     var n = $('lanternNote');
     if (!n) { n = document.createElement('div'); n.id = 'lanternNote'; n.className = 'lantern-note'; document.body.appendChild(n); }
@@ -105,6 +152,10 @@
     if (path === '/api/data') return Promise.resolve(DATA.data);
     if (path === '/api/areas') return Promise.resolve(DATA.areas);
     if (path.indexOf('/api/google/place?condo=') === 0) return googlePlace(decodeURIComponent(path.split('=')[1]));
+    if (path === '/api/notes') {
+      if (opts && opts.method === 'POST') return saveNotes(JSON.parse(opts.body));
+      return readNotes().catch(function () { notice('Couldn\'t read the notes from GitHub.'); return {}; });
+    }
     if (path === '/api/shortlist') {
       if (opts && opts.method === 'POST') return saveShortlist(JSON.parse(opts.body));
       return readShortlist().catch(function () { notice('Couldn\'t read the shortlist from GitHub.'); return []; });
