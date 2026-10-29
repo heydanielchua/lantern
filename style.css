@@ -578,21 +578,6 @@ table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font
 .cmptable td.good { color: #2e9b2d; font-weight: 700; }
 .cmptable td.bad { color: #e5483b; font-weight: 700; }
 
-/* my notes (review item 15, 28 Oct) */
-.notes .fchips button { font-size: 12px; padding: 4px 10px; }
-.nrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); }
-.nrow input, .notes textarea { font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); padding: 7px 10px; }
-.nrow input { width: 62%; box-sizing: border-box; }
-.notes textarea { width: 100%; box-sizing: border-box; resize: vertical; line-height: 1.4; }
-.stars { color: #d6d5d0; letter-spacing: 1px; font-size: 13px; }
-.stars .st.on { color: var(--star); }
-.stars.big button { font-size: 22px; line-height: 1; padding: 0 1px; border: 0; background: none; color: #d6d5d0; cursor: pointer; }
-.stars.big button.on { color: var(--star); }
-.nline { margin-top: 3px !important; }
-.ntag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #eef3ef; color: #4C7458; }
-.ntag.no { background: var(--soft); color: var(--muted); }
-.list-item.dim { opacity: 0.55; }
-
 /* ---- phone (27 Oct): compact two-row top bar; cards slide up from the bottom (bottom sheets) ---- */
 @media (max-width: 700px) {
   .topnav { flex-wrap: wrap; padding: 8px 10px; gap: 6px 8px; }

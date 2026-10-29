@@ -10,7 +10,7 @@
   var S = {
     listings: [], condos: {}, areas: {}, meta: {},
     condoView: (function () { try { return localStorage.getItem('hqCondoView') || 'list'; } catch (e) { return 'list'; } })(),
-    shortlist: [], shortAdded: {}, notes: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
+    shortlist: [], shortAdded: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
     shortView: { q: '', area: '', beds: 0, sort: 'added' },
     eview: 'all',      // ethnic groups: 'all' residents or 'private' (condo & landed estimate)
     filters: { min: 0, max: 0, sizeMin: 0, sizeMax: 0, psfMin: 0, psfMax: 0, beds: [], floor: [], types: [], tenure: [], lease: [], age: [], baths: [],
@@ -1261,7 +1261,7 @@
       ? '<div>' + esc(c.review.reviewTitle) + '</div><div class="hint">' + esc(c.review.reviewType) + '</div>' +
         '<a href="' + esc(c.review.reviewUrl) + '" target="_blank" rel="noopener">Read review →</a>'
       : '<span class="empty">No Stacked Homes review found for this condo.</span>';
-    return condoHero(c, units, groups) + notesBox(c) + workerAlert(c) + '<div id="gPhotos">' + googlePhotos(c) + '</div>' + condoShort(c, units, groups) +
+    return condoHero(c, units, groups) + workerAlert(c) + '<div id="gPhotos">' + googlePhotos(c) + '</div>' + condoShort(c, units, groups) +
       scoreBlock(c.score) +
       '<div class="grid2">' +
       '<button type="button" class="stat stat-btn" data-tab="sale">For sale<strong>' + (units.length > 1 ? 'from ' : '') + money(units[0].price) + '</strong>' +
@@ -1615,13 +1615,6 @@
   function onPanelClick(e) {
     var t = e.target.closest('button');
     if (!t) return;
-    if ((t.dataset.nstatus || t.dataset.nstar) && S.panel && S.panel.condo) {          // my notes: status / rating
-      var x = noteOf(S.panel.condo) || {}, body = $('detail').querySelector('.card-body'), y0 = body.scrollTop;
-      if (t.dataset.nstatus) setNote(S.panel.condo, { status: x.status === t.dataset.nstatus ? '' : t.dataset.nstatus });
-      else setNote(S.panel.condo, { rating: x.rating === +t.dataset.nstar ? 0 : +t.dataset.nstar });
-      renderPanel(); $('detail').querySelector('.card-body').scrollTop = y0;
-      return;
-    }
     if (t.dataset.action === 'close') closePanel();
     else if (t.dataset.action === 'back') openArea(S.panel.area, 'condos');
     else if (t.dataset.action === 'star') { var y4 = $('detail').querySelector('.card-body').scrollTop; toggleShort(S.panel.condo); $('detail').querySelector('.card-body').scrollTop = y4; }
@@ -1843,9 +1836,8 @@
     $('shortItems').innerHTML = (items.length ? items.map(function (k) {
       var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
       var on = S.panel && S.panel.condo === k;
-      var no = noteOf(k) && noteOf(k).status === 'no';
-      return '<button type="button" class="list-item' + (on ? ' on' : '') + (no ? ' dim' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-        '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small>' + noteTag(k) + '</span>' +
+      return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo=""' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
+        '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small></span>' +
         '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') + scoreTag(c) + '</span></span></button>';
     }).join('') : (gone.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
       gone.map(function (k) {      // every unit was sold / taken down since: kept, greyed, until you remove it
@@ -1857,49 +1849,6 @@
     $('shortCount').textContent = all.length + gone.length;
     $('btnCompare').hidden = all.length < 2;
     if (S.compare) renderCompare();
-  }
-
-  // ---- my notes per condo (review item 15, built 28 Oct) ----------------------------------
-  // Saved on the Mac (data/notes.json via /api/notes) and, scrambled, in the online copy (notes.bin) — Daniel, 28 Oct.
-  var NOTE_STATUS = [['toview', 'To view'], ['booked', 'Viewing booked'], ['viewed', 'Viewed'], ['no', 'Not for us']];
-  function notesOn() { return true; }
-  function noteOf(k) { return S.notes[k] || null; }
-  function starsHtml(r) { var out = ''; for (var i = 1; i <= 5; i++) out += '<span class="st' + (i <= r ? ' on' : '') + '">★</span>'; return '<span class="stars">' + out + '</span>'; }
-  function niceDate(d) { var t = d ? new Date(d + 'T00:00:00') : null; return t && !isNaN(t) ? t.toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' }) : ''; }
-  function statusText(v) { return (NOTE_STATUS.filter(function (x) { return x[0] === v; })[0] || [0, ''])[1]; }
-  function noteTag(k) {                  // the small line under a condo on the shortlist
-    var x = noteOf(k);
-    if (!x) return '';
-    if (x.status === 'no') return '<small class="nline"><span class="ntag no">Not for us</span></small>';
-    if (x.status === 'booked') return '<small class="nline"><span class="ntag">' + (x.date ? 'Viewing ' + esc(niceDate(x.date)) : 'Viewing booked') + '</span></small>';
-    if (x.rating) return '<small class="nline">' + starsHtml(x.rating) + '</small>';
-    return x.status ? '<small class="nline"><span class="ntag">' + statusText(x.status) + '</span></small>' : '';
-  }
-  function notesBox(c) {
-    if (!notesOn()) return '';
-    var x = noteOf(c.key) || {}, stars = '';
-    for (var i = 1; i <= 5; i++) stars += '<button type="button" class="st' + (i <= (x.rating || 0) ? ' on' : '') + '" data-nstar="' + i + '" aria-label="' + i + ' star' + (i > 1 ? 's' : '') + '">★</button>';
-    return '<div class="box notes"><div class="head-row"><span class="eyebrow">My notes' + tip('Saved on the Mac mini and, scrambled, in the online copy — anyone with the online password can read them. Saved as you type.') + '</span>' +
-      '<span class="hint" id="noteSaved">' + (x.updated ? 'Saved' : '') + '</span></div>' +
-      '<div class="fchips">' + NOTE_STATUS.map(function (v) { return '<button type="button" data-nstatus="' + v[0] + '" aria-pressed="' + (x.status === v[0]) + '">' + v[1] + '</button>'; }).join('') + '</div>' +
-      '<div class="nrow"><span>My rating</span><span class="stars big">' + stars + '</span></div>' +
-      '<label class="nrow"><span>Viewing</span><input type="date" data-nfield="date" value="' + esc(x.date || '') + '"></label>' +
-      '<label class="nrow"><span>Agent</span><input type="text" data-nfield="agent" placeholder="Name · phone" value="' + esc(x.agent || '') + '"></label>' +
-      '<label class="sr-only" for="noteText">Notes</label><textarea id="noteText" data-nfield="text" rows="3" placeholder="What you noticed — noise, view, facilities, light…">' + esc(x.text || '') + '</textarea></div>';
-  }
-  function setNote(key, change) {
-    var x = noteOf(key) || {};
-    Object.keys(change).forEach(function (f) { x[f] = change[f]; });
-    x.updated = new Date().toISOString();
-    S.notes[key] = x;
-    var el = $('noteSaved'); if (el) el.textContent = 'Saving…';
-    clearTimeout(setNote.timer);
-    setNote.timer = setTimeout(function () {
-      api('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(S.notes) })
-        .then(function (r) { if (!r || r.error) throw new Error(); var e2 = $('noteSaved'); if (e2) e2.textContent = 'Saved'; })
-        .catch(function () { var e3 = $('noteSaved'); if (e3) e3.textContent = 'Couldn\'t save — is the HomeQuest window still open?'; });
-    }, window.HQ_API ? 2000 : 500);              // online: each save is a GitHub upload, so wait for a pause in typing
-    renderShortlist();
   }
 
   // ---- compare the shortlist side by side (review item 14, mock-up OK'd 28 Oct) ---------
@@ -1926,7 +1875,7 @@
       hawker: nb.hawkers && nb.hawkers[0] ? nb.hawkers[0].m : null, shop: nb.supermarket ? nb.supermarket.m : null,
       park: nb.park ? nb.park.m : null, dog: nb.dogRun ? nb.dogRun.m : null,
       busy: sz && sz.perKm2, rent: rentLevel(c), xway: nb.xway ? nb.xway.m : (c.lat != null && c.near ? Infinity : null), xwayName: nb.xway && nb.xway.name, newUnits: unitsOf(comingNear(c, 'newproj', 1000)),
-      days: days.length ? Math.floor(Math.max.apply(null, days)) : null, watch: watch, note: noteOf(c.key)
+      days: days.length ? Math.floor(Math.max.apply(null, days)) : null, watch: watch
     };
   }
   function dist(x) { return x != null ? metres(x) : '—'; }
@@ -1981,10 +1930,7 @@
         '<div class="csub">' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</div>' +
         '<div class="cscore"><b>' + (facts[i].score != null ? facts[i].score : '—') + '</b><span>score</span></div></th>';
     }).join('') + '</tr>';
-    var rows = COMPARE_ROWS.concat(notesOn() ? [['My notes', [
-      ['Status', 'note', function (x) { return x && x.status ? statusText(x.status) + (x.status === 'booked' && x.date ? '<small>' + esc(niceDate(x.date)) + '</small>' : '') : '—'; }, null],
-      ['My rating', 'note', function (x) { return x && x.rating ? starsHtml(x.rating) : '—'; }, null]]]] : []);
-    var body = rows.map(function (g) {
+    var body = COMPARE_ROWS.map(function (g) {
       return '<tr class="grp"><td colspan="' + (cs.length + 1) + '"><span>' + g[0] + '</span></td></tr>' + g[1].map(function (r) {
         var m = marks(r[1], r[3]);
         return '<tr><td class="lab">' + r[0] + '</td>' + facts.map(function (f) {
@@ -2281,9 +2227,6 @@
     $('detail').addEventListener('scroll', function (e) { if (e.target.classList && e.target.classList.contains('gphotos')) photoStripMoved(e.target); }, true);
     $('detail').addEventListener('input', function (e) {
       if (e.target.id === 'areaQ' && S.panel) { S.panel.q = e.target.value.trim(); $('areaList').innerHTML = areaCondoList(S.panel.area); }
-      if (e.target.dataset && e.target.dataset.nfield && S.panel && S.panel.condo) {          // my notes: date, agent, text
-        var change = {}; change[e.target.dataset.nfield] = e.target.value; setNote(S.panel.condo, change);
-      }
     });
     $('detail').addEventListener('change', function (e) {
       if (e.target.id === 'areaSort' && S.panel) { S.panel.sort = e.target.value; $('areaList').innerHTML = areaCondoList(S.panel.area); }
@@ -2294,9 +2237,7 @@
       var b = e.target.closest('button[data-condo]');
       if (b) openCondo(b.dataset.condo, { fly: true });
     });
-    Promise.all([api('/api/data'), api('/api/areas'), api('/api/shortlist'),
-      notesOn() ? api('/api/notes').catch(function () { return {}; }) : Promise.resolve({})]).then(function (r) {
-      S.notes = r[3] && !r[3].error ? r[3] : {};
+    Promise.all([api('/api/data'), api('/api/areas'), api('/api/shortlist')]).then(function (r) {
       // listings the newest full robot run didn't see are sold / taken down: hidden (kept only to label old shortlist items)
       S.listings = r[0].listings.filter(function (l) { return !l.gone; });
       S.gone = {};
