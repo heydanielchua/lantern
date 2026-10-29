@@ -14,8 +14,13 @@
     shortView: { q: '', area: '', beds: 0, sort: 'added' },
     eview: 'all',      // ethnic groups: 'all' residents or 'private' (condo & landed estimate)
     filters: { min: 0, max: 0, sizeMin: 0, sizeMax: 0, psfMin: 0, psfMax: 0, beds: [], floor: [], types: [], tenure: [], lease: [], age: [], baths: [],
-      mrt: [], rent: [], region: [], districts: [], listed: [], other: [] }
+      mrt: [], rent: [], region: [], districts: [], listed: [], xway: [], other: [] }
   };
+  // Near-expressway flag (agreed 21 Oct, built 29 Oct): red / orange distances in metres, adjustable in Filters (remembered)
+  var XWAY = (function () {
+    try { var v = JSON.parse(localStorage.getItem('hqXway')); if (v && v.red > 0 && v.orange > v.red) return v; } catch (e) { /* defaults */ }
+    return { red: 150, orange: 300 };
+  })();
   var map, areaLayer, pinLayer, labelLayer, selLayer;
   var markers = {};
 
@@ -76,6 +81,10 @@
     var cut = monthsAgo(12), p = share(c.rent.rentals.filter(function (x) { return x.month > cut; }).length, c.mcst.units);
     return p >= 20 ? 'high' : (p >= 8 ? 'mid' : 'low');
   }
+  function xwayLevel(c) {          // 'red' / 'orange' / '' for the nearest expressway
+    var x = c && c.near && c.near.xway;
+    return !x ? '' : (x.m <= XWAY.red ? 'red' : (x.m <= XWAY.orange ? 'orange' : ''));
+  }
   function daysAgo(d) { return d ? (Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5 : Infinity; }
   function visible(l) {
     var f = S.filters, c = S.condos[l.condo];
@@ -100,6 +109,7 @@
       if (walk == null || walk > +f.mrt[0]) return false;
     }
     if (f.rent.length && f.rent.indexOf(rentLevel(c)) < 0) return false;
+    if (f.xway.length) { var xl = xwayLevel(c); if (xl === 'red' || (xl && f.xway[0] === 'orange')) return false; }
     if (f.region.length && f.region.indexOf(regionOf(l.district)) < 0) return false;
     if (f.districts.length && f.districts.indexOf(l.district) < 0) return false;
     if (f.listed.length && daysAgo(l.firstSeen) > +f.listed[0]) return false;
@@ -780,11 +790,13 @@
       "newproj": "<rect x=\"2\" y=\"6\" width=\"20\" height=\"8\" rx=\"1\" /> <path d=\"M17 14v7\" /> <path d=\"M7 14v7\" /> <path d=\"M17 3v3\" /> <path d=\"M7 3v3\" /> <path d=\"M10 14 2.3 6.3\" /> <path d=\"m14 6 7.7 7.7\" /> <path d=\"m8 6 8 8\" />"
   };
   ICON.futuremrt = ICON.mrt;
+  ICON.xway = "<path d=\"m21 8-2 2-1.5-3.7A2 2 0 0 0 15.646 5H8.4a2 2 0 0 0-1.903 1.257L5 10 3 8\" /> <path d=\"M7 14h.01\" /> <path d=\"M17 14h.01\" /> <rect width=\"18\" height=\"8\" x=\"3\" y=\"10\" rx=\"2\" /> <path d=\"M5 18v2\" /> <path d=\"M19 18v2\" />";
   // icon style B (agreed 25 Oct): solid colour circle, white icon + edge, all the same size; MRT = one MRT-sign red, worship = warm brown
   var PLACE_KINDS = [
     ['mrt', 'MRT exits', '#D42E12'], ['futuremrt', 'Future MRT', '#D42E12'], ['shop', 'Supermarkets', '#4C7458'], ['hawker', 'Hawkers', '#8E6CC2'],
     ['park', 'Parks', '#46B035'], ['dog', 'Dog runs', '#46B035'], ['worship', 'Places of worship', '#A47551'], ['dorm', 'Worker dormitories', '#E07A7A'],
-    ['newproj', 'New projects', '#3B6FB6']      // 27 Oct: future MRT = dashed white circle; new homes being built = blue
+    ['newproj', 'New projects', '#3B6FB6'],     // 27 Oct: future MRT = dashed white circle; new homes being built = blue
+    ['xway', 'Expressways', '#5B5B59']          // 29 Oct: lines, not icons
   ];
   function iconSvg(kind) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[kind] + '</svg>';
@@ -819,7 +831,14 @@
         L.marker([c.lat + r / 111320, c.lng], { icon: L.divIcon({ className: 'ring-label', html: r === 1000 ? '1 km' : '500 m', iconSize: [40, 14], iconAnchor: [20, 7] }), interactive: false }).addTo(placeLayer);
       });
     }
+    if (S.placesOn.xway) {             // expressway centre lines (above ground), name on hover
+      (S.places.xway || []).forEach(function (x) {
+        L.polyline(x[1], { color: '#5B5B59', weight: 4, opacity: 0.5, lineCap: 'round' })
+          .bindTooltip(esc(x[0]) + (XWAY_FULL[x[0]] ? ' · ' + esc(XWAY_FULL[x[0]]) : ''), { sticky: true }).addTo(placeLayer);
+      });
+    }
     PLACE_KINDS.forEach(function (k) {
+      if (k[0] === 'xway') return;
       var pts = (S.places[k[0]] || []).filter(function (p) {
         return c ? metresBetween(c.lat, c.lng, p[0], p[1]) <= 1200 : insideArea(p[0], p[1], geom);
       });
@@ -1329,6 +1348,9 @@
     var rh = rushOf(nb);
     if (nb && nb.drive) lines.push('<strong>' + nb.drive.min + ' min drive</strong> to VivoCity (' + nb.drive.km + ' km, normal traffic)' +
       (rh && rh.am ? ' · about <strong>' + rh.am.min + ' min at 8:30am</strong>' : '') + '.');
+    var xw = xwayLevel(c);
+    if (xw) lines.push(xw === 'red' ? '<strong>Next to the ' + esc(nb.xway.name) + '</strong> (' + metres(nb.xway.m) + ') — expect traffic noise; check which side the unit faces.'
+      : '<strong>' + esc(nb.xway.name) + ' ' + metres(nb.xway.m) + ' away</strong> — you may hear traffic, depending on the side and floor.');
     var fm = comingNear(c, 'futuremrt', 1000)[0], np = comingNear(c, 'newproj', 1000);
     if (fm) lines.push('<strong>New MRT coming:</strong> ' + esc(fm.p[2]) + ' (' + esc(fm.p[3]) + ', ' + esc(fm.p[4]) + '), ' + metres(fm.m) + ' away.');
     if (unitsOf(np) >= 500) lines.push('<strong>' + n(unitsOf(np)) + ' new homes</strong> being built within 1 km — more competition when renting out or selling.');
@@ -1407,7 +1429,23 @@
         w ? worshipName(w) + ' · <strong>' + metres(w.m) + '</strong> ' + worshipTag(w.m) : '<span class="ok-text">none within 2 km</span>',
         w && w.name ? esc(w.kind) : '') +
       row('Planned place of worship' + tip('A plot zoned for worship in Master Plan 2025 that wasn\'t in Master Plan 2019 — likely to be built in future. Highlighted within 1 km.'),
-        p ? 'New plot in Master Plan 2025 · <strong>' + metres(p.m) + '</strong> ' + nearTag(p.m) : '<span class="ok-text">none within 2 km</span>');
+        p ? 'New plot in Master Plan 2025 · <strong>' + metres(p.m) + '</strong> ' + nearTag(p.m) : '<span class="ok-text">none within 2 km</span>') +
+      xwayRow(nb, row);
+  }
+  var XWAY_TIP = 'Nearest expressway above ground (LTA road map; tunnels left out). Straight line from the condo\'s map pin to the middle of the road, so blocks on the near side of a big estate are closer. ';
+  function xwayTipText() { return XWAY_TIP + 'Red within ' + XWAY.red + ' m (likely traffic noise), orange within ' + XWAY.orange + ' m — change the distances in Filters.'; }
+  function xwayTag(c) {
+    var l = xwayLevel(c);
+    return l === 'red' ? '<span class="chip bad">Very close</span>' : (l === 'orange' ? '<span class="chip warn">Close</span>' : '');
+  }
+  function xwayName(x) { return '<span title="' + esc(XWAY_FULL[x.name] || '') + '">' + esc(x.name) + '</span>'; }
+  var XWAY_FULL = { AYE: 'Ayer Rajah Expressway', PIE: 'Pan-Island Expressway', TPE: 'Tampines Expressway', BKE: 'Bukit Timah Expressway',
+    SLE: 'Seletar Expressway', ECP: 'East Coast Parkway', CTE: 'Central Expressway', KJE: 'Kranji Expressway', KPE: 'Kallang–Paya Lebar Expressway' };
+  function xwayRow(nb, row) {
+    var x = nb.xway, c = { near: nb };
+    return row('Expressway' + tip(xwayTipText()),
+      x ? xwayName(x) + ' · <strong>' + metres(x.m) + '</strong> ' + xwayTag(c) : '<span class="ok-text">none within 1 km</span>',
+      x ? [XWAY_FULL[x.name] || '', x.next ? esc(x.next.name) + ' ' + metres(x.next.m) : ''].filter(Boolean).join(' · ') : '');
   }
   // Red / amber note at the top of the condo summary when a dormitory or gathering spot is within 1 km
   function workerAlert(c) {
@@ -1415,11 +1453,13 @@
     if (nb.dorm && nb.dorm.m <= WORKERS_CLOSE) items.push(['Worker dormitory', esc(nb.dorm.name) + ' · <strong>' + metres(nb.dorm.m) + '</strong>' + (nb.dorm.blocks > 1 ? ' (' + nb.dorm.blocks + ' blocks)' : ''), nb.dorm.m]);
     if (nb.worship && nb.worship.m <= WORSHIP_CLOSE) items.push(['Place of worship', worshipName(nb.worship) + ' · <strong>' + metres(nb.worship.m) + '</strong>' + (nb.worship.name ? '<br><small>' + esc(nb.worship.kind) + '</small>' : ''), nb.worship.m <= WORSHIP_VERY ? 0 : WORKERS_VERY + 1]);
     if (nb.worshipPlanned && nb.worshipPlanned.m <= WORKERS_CLOSE) items.push(['Planned place of worship', 'New plot in Master Plan 2025 · <strong>' + metres(nb.worshipPlanned.m) + '</strong>', nb.worshipPlanned.m]);
+    var xl = xwayLevel(c);
+    if (xl) items.push(['Expressway', xwayName(nb.xway) + ' · <strong>' + metres(nb.xway.m) + '</strong><br><small>' + (xl === 'red' ? 'likely traffic noise' : 'may hear traffic') + '</small>', xl === 'red' ? 0 : WORKERS_VERY + 1]);
     if (nb.spot && nb.spot.m <= WORKERS_CLOSE) items.push(['Weekend gathering spot', esc(nb.spot.name) + ' · <strong>' + metres(nb.spot.m) + '</strong><br><small>' + esc(nb.spot.note) + '</small>', nb.spot.m]);
     if (!items.length) return '';
     var very = items.some(function (x) { return x[2] <= WORKERS_VERY; });
     return '<div class="box alert' + (very ? ' very' : '') + '"><span class="eyebrow">⚠ Near this condo' +
-      tip('Dormitories, gathering spots and planned places of worship within 1 km (red within 500 m); existing places of worship within 150 m (red within 100 m). Information only — not part of the score. See the Nearby tab.') + '</span>' +
+      tip('Dormitories, gathering spots and planned places of worship within 1 km (red within 500 m); existing places of worship within 150 m (red within 100 m); expressways within ' + XWAY.orange + ' m (red within ' + XWAY.red + ' m). Information only — not part of the score. See the Nearby tab.') + '</span>' +
       '<div class="rows">' + items.map(function (x) { return '<div><span>' + x[0] + '</span><span>' + x[1] + '</span></div>'; }).join('') + '</div></div>';
   }
 
@@ -1873,7 +1913,8 @@
     var watch = [nb.dorm && nb.dorm.m <= WORKERS_CLOSE ? 'dormitory ' + metres(nb.dorm.m) : '',
       nb.worship && nb.worship.m <= WORSHIP_CLOSE ? 'worship ' + metres(nb.worship.m) : '',
       nb.worshipPlanned && nb.worshipPlanned.m <= WORKERS_CLOSE ? 'planned worship ' + metres(nb.worshipPlanned.m) : '',
-      nb.spot && nb.spot.m <= WORKERS_CLOSE ? 'gathering spot ' + metres(nb.spot.m) : ''].filter(Boolean);
+      nb.spot && nb.spot.m <= WORKERS_CLOSE ? 'gathering spot ' + metres(nb.spot.m) : '',
+      xwayLevel(c) ? nb.xway.name + ' ' + metres(nb.xway.m) : ''].filter(Boolean);
     return {
       score: c.score ? c.score.total : null, price: u[0].price, psf: median(u.map(function (l) { return l.psf; })),
       vs: diffs.length ? Math.round(median(diffs)) : null, units: groups.length,
@@ -1884,7 +1925,7 @@
       future: comingNear(c, 'futuremrt', 2000)[0] || null,
       hawker: nb.hawkers && nb.hawkers[0] ? nb.hawkers[0].m : null, shop: nb.supermarket ? nb.supermarket.m : null,
       park: nb.park ? nb.park.m : null, dog: nb.dogRun ? nb.dogRun.m : null,
-      busy: sz && sz.perKm2, rent: rentLevel(c), newUnits: unitsOf(comingNear(c, 'newproj', 1000)),
+      busy: sz && sz.perKm2, rent: rentLevel(c), xway: nb.xway ? nb.xway.m : (c.lat != null && c.near ? Infinity : null), xwayName: nb.xway && nb.xway.name, newUnits: unitsOf(comingNear(c, 'newproj', 1000)),
       days: days.length ? Math.floor(Math.max.apply(null, days)) : null, watch: watch, note: noteOf(c.key)
     };
   }
@@ -1910,6 +1951,7 @@
     ['Neighbourhood', [
       ['How busy (people / km²)', 'busy', function (x) { return x ? n(x) : '—'; }, 'low'],
       ['Renting level', 'rent', function (x) { return RENT_TEXT[x] || '—'; }, null],
+      ['Nearest expressway', 'xway', function (x, f) { return x === Infinity ? 'over 1 km' : (x != null ? esc(f.xwayName) + ' · ' + metres(x) : '—'); }, 'high'],
       ['New homes being built ≤ 1 km', 'newUnits', function (x) { return x ? n(x) + ' units' : 'none'; }, 'low'],
       ['Watch-outs', 'watch', function (x) { return x.length ? x.join('<br>') : '<span class="ok-text">none</span>'; }, null]]],
     ['On the market', [['Longest listed', 'days', function (x) { return x != null ? x + ' days' : '—'; }, null]]]
@@ -2015,6 +2057,30 @@
     document.addEventListener('click', closePops);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closePops(); $('searchResults').hidden = true; } });
     ['priceMin', 'priceMax', 'sizeMin', 'sizeMax', 'psfMin', 'psfMax'].forEach(function (id) { $(id).addEventListener('change', applyFilters); });
+    function xwayOptions(id, steps, now) {
+      $(id).innerHTML = steps.map(function (v) { return '<option value="' + v + '"' + (v === now ? ' selected' : '') + '>' + v + ' m</option>'; }).join('');
+    }
+    function xwayLabels() {
+      document.querySelectorAll('[data-f=xway] button').forEach(function (b) { b.textContent = 'Hide within ' + XWAY[b.dataset.v] + ' m'; });
+    }
+    var XWAY_RED = [50, 100, 150, 200, 250, 300], XWAY_ORANGE = [200, 300, 400, 500, 600, 800];
+    xwayOptions('xwayRed', XWAY_RED, XWAY.red);
+    xwayOptions('xwayOrange', XWAY_ORANGE, XWAY.orange);
+    xwayLabels();
+    ['xwayRed', 'xwayOrange'].forEach(function (id) {
+      $(id).addEventListener('change', function () {
+        var red = +$('xwayRed').value, orange = +$('xwayOrange').value;
+        if (orange <= red) {           // keep orange further out than red: move the other picker
+          if (id === 'xwayRed') orange = XWAY_ORANGE.filter(function (v) { return v > red; })[0];
+          else red = XWAY_RED.filter(function (v) { return v < orange; }).pop();
+        }
+        XWAY.red = red; XWAY.orange = orange;
+        $('xwayRed').value = red; $('xwayOrange').value = orange;
+        try { localStorage.setItem('hqXway', JSON.stringify(XWAY)); } catch (e) { /* not remembered */ }
+        xwayLabels();
+        applyFilters();
+      });
+    });
     document.querySelectorAll('.fpanel').forEach(function (panel) {
       panel.addEventListener('click', function (e) {
         var b = e.target.closest('button');
@@ -2047,7 +2113,7 @@
     if (which === 'beds' || which === 'all') f.beds.length = 0;
     if (which === 'all') {
       $('psfMin').value = $('psfMax').value = '0';
-      ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'other'].forEach(function (k) { f[k].length = 0; });
+      ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'xway', 'other'].forEach(function (k) { f[k].length = 0; });
     }
   }
 
@@ -2078,9 +2144,10 @@
     if (f.region.length) out.push([f.region.join(', '), 'region']);
     if (f.districts.length) out.push([f.districts.map(function (d) { return d.replace(/^D0/, 'D'); }).join(', '), 'districts']);
     if (f.listed.length) out.push(['Listed ≤ ' + f.listed[0] + ' days', 'listed']);
+    if (f.xway.length) out.push(['Not within ' + XWAY[f.xway[0]] + ' m of an expressway', 'xway']);
     return out;
   }
-  var MORE_KEYS = ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'other'];
+  var MORE_KEYS = ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'xway', 'other'];
   function applyFilters() {
     var f = S.filters;
     f.min = +$('priceMin').value; f.max = +$('priceMax').value;

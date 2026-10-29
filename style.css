@@ -531,6 +531,12 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .frow { display: flex; gap: 8px; align-items: center; }
 .frow select { flex: 1; margin: 0; font: inherit; font-size: 12.5px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); }
 .fpanel .hint { display: block; margin-top: 4px; font-size: 11px; }
+.frow.xway-set { margin-top: 6px; font-size: 11.5px; color: var(--muted); gap: 6px; }
+.frow.xway-set select { padding: 5px 6px; font-size: 12px; }
+.frow.xway-set span { white-space: nowrap; }
+.xdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+.xdot.red { background: var(--down); }
+.xdot.orange { background: #e8912d; }
 .ffoot { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
 .fshow { font: inherit; font-weight: 600; font-size: 13px; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 9px 18px; cursor: pointer; }
 /* keep the top bar on one line now that the filters show summaries */
