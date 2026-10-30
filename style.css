@@ -394,9 +394,9 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .gl b { display: block; font-family: var(--serif); font-size: 20px; font-weight: 400; color: var(--ink); }
 .gl b::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #d6d5d0; margin-right: 6px; vertical-align: 3px; }
 .gl .near b::before { background: #38bc37; } .gl .far b::before { background: #f44336; }
-.dock { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 10px 12px 14px;
+.dock { flex: 0 0 auto; display: flex; flex-wrap: nowrap; gap: 6px; justify-content: center; padding: 10px 12px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.7); }
-.dock a, .dock button { font: inherit; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 9px 15px; font-size: 13px;
+.dock a, .dock button { font: inherit; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 9px 15px; font-size: 13px; white-space: nowrap;
   font-weight: 600; text-decoration: none; color: var(--ink); cursor: pointer;
   background: rgba(255, 255, 255, 0.85); border: 1px solid #fff; box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.3); }
 .dock .dark { background: var(--accent); color: #fff; border-color: var(--accent); }

@@ -1314,7 +1314,7 @@
   // Floating action bar at the bottom of the condo card (all tabs)
   function dock(c, units, star) {
     var cheapest = units[0], plan = units.filter(function (l) { return l.floorplan; })[0];
-    return '<div class="dock"><button type="button" class="' + (star ? 'dark' : '') + '" data-action="star" aria-pressed="' + star + '">' + (star ? '★ Shortlisted' : '☆ Shortlist') + '</button>' +
+    return '<div class="dock"><button type="button" class="' + (star ? 'dark' : '') + '" data-action="star" aria-pressed="' + star + '">' + (star ? '★ Shortlist' : '☆ Shortlist') + '</button>' +
       '<a href="' + esc(plan ? plan.floorplan : cheapest.url) + '" target="_blank" rel="noopener">Floor plan' + (plan ? '' : '<span class="wide-only"> on ' + esc(cheapest.source) + '</span>') + '</a>' +
       '<a href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">Open listing ↗</a></div>';
   }
