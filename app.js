@@ -1836,7 +1836,7 @@
     $('shortItems').innerHTML = (items.length ? items.map(function (k) {
       var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
       var on = S.panel && S.panel.condo === k;
-      return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo=""' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
+      return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
         '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small></span>' +
         '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') + scoreTag(c) + '</span></span></button>';
     }).join('') : (gone.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
