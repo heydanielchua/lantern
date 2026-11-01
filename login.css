@@ -10,7 +10,7 @@
 .login-sub { margin: -6px 0 4px; font-size: 12.5px; color: #8a8985; }
 .login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; }
 .login-card label span { font-weight: 400; color: #8a8985; }
-.login-card input[type=password] { font: inherit; font-weight: 400; font-size: 14px; padding: 10px 12px; border-radius: 14px;
+.login-card input[type=password] { font: inherit; font-weight: 400; font-size: 16px; padding: 10px 12px; border-radius: 14px;
   border: 1px solid #e2e2de; background: #fff; color: #414140; }
 .login-card input[type=password]:focus { outline: 2px solid #4C7458; outline-offset: 1px; }
 .login-card .login-check { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; }

@@ -58,10 +58,12 @@
   }
   function isFreehold(t) { return /freehold/i.test(t || '') || /^9\d\d-year/.test(t || ''); }
   function bedsText(b) { return b == null ? '—' : (b === 0 ? 'Studio' : b + ' bed'); }
-  // Phone layout (27 Oct): cards slide up from the bottom, so the map keeps the top part of the screen free
-  function phone() { return window.matchMedia('(max-width: 700px)').matches; }
-  function cardRoom(opts) {
-    if (phone()) { opts.paddingTopLeft = [10, 50]; opts.paddingBottomRight = [10, Math.round(window.innerHeight * 0.62)]; }
+  // Phones get their own layout (1 Nov, see "phone layout" near the end), decided once when the page opens
+  var M = window.matchMedia('(max-width: 700px)').matches ||
+    (window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 500);
+  function phone() { return M; }
+  function cardRoom(opts) {          // keep the condo clear of the search bar and the sheet / tab bar
+    if (M) { opts.paddingTopLeft = [16, 140]; opts.paddingBottomRight = [16, mCover() + 16]; }
     return opts;
   }
   function soon(text) { return '<span class="soon-text">' + esc(text || 'coming soon') + '</span>'; }
@@ -527,7 +529,7 @@
     }
     map.on('zoomend', insetCover);
     insetCover();
-    map.on('click', closePanel);
+    map.on('click', function () { closePanel(); if (M) mLayers(false); });
     map.on('movestart', hidePeek);
     map.on('zoomend', zoomClass);
     map.on('moveend', declutter);
@@ -728,7 +730,7 @@
   // ---- right card -------------------------------------------------------------
   function openArea(id, tab) {
     var prev = S.panel && S.panel.condo;
-    S.panel = { type: 'area', area: id, tab: tab || 'summary', q: '', sort: 'count' };
+    S.panel = { type: 'area', area: id, tab: tab || 'summary', q: '', sort: 'count', m: tab ? 'full' : 'peek' };
     if (phone()) setLeft(false);
     refreshPin(prev);
     renderPanel();
@@ -739,14 +741,16 @@
   function openCondo(key, opts) {
     var c = S.condos[key];
     if (!c) return;
-    var prev = S.panel && S.panel.condo;
-    S.panel = { type: 'condo', condo: key, area: c.area, tab: 'summary', allSales: false, allRent: false };
+    var prev = S.panel && S.panel.condo, wasFull = S.panel && S.panel.m === 'full';
+    S.panel = { type: 'condo', condo: key, area: c.area, tab: 'summary', allSales: false, allRent: false,
+      m: (opts && opts.full) || wasFull ? 'full' : 'peek' };          // phone: preview card or full page
     if (phone()) setLeft(false);
     refreshPin(prev);
     refreshPin(key);
-    if (c.lat != null) showOnMap(c, opts && opts.fly);
+    if (c.lat != null && !M) showOnMap(c, opts && opts.fly);
     hidePeek();
     renderPanel();
+    if (c.lat != null && M) showOnMap(c, opts && opts.fly);       // phone: after the sheet is drawn, so its height is known
     restyle();
     renderShortlist();
     drawPlaces();
@@ -911,6 +915,7 @@
   }
 
   function renderPanel() {
+    if (M) return mSheet();
     var el = $('detail');
     if (!S.panel) { el.classList.remove('open'); el.setAttribute('aria-hidden', 'true'); return; }
     el.innerHTML = S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(S.condos[S.panel.condo]);
@@ -1615,6 +1620,8 @@
   function onPanelClick(e) {
     var t = e.target.closest('button');
     if (!t) return;
+    if (t.dataset.mfull) { S.panel.tab = t.dataset.mfull; return mSetMode('full'); }         // phone: area preview → full page
+    if (t.dataset.maction === 'onmap') { var oc = S.condos[S.panel.condo]; mGoTab('map', true); S.panel.m = 'peek'; renderPanel(); return oc.lat != null && showOnMap(oc, true); }
     if (t.dataset.action === 'close') closePanel();
     else if (t.dataset.action === 'back') openArea(S.panel.area, 'condos');
     else if (t.dataset.action === 'star') { var y4 = $('detail').querySelector('.card-body').scrollTop; toggleShort(S.panel.condo); $('detail').querySelector('.card-body').scrollTop = y4; }
@@ -1849,6 +1856,7 @@
     $('shortCount').textContent = all.length + gone.length;
     $('btnCompare').hidden = all.length < 2;
     if (S.compare) renderCompare();
+    if (M) { mBadge(); if (mTab === 'short' || mTab === 'compare') mRender(); }
   }
 
   // ---- compare the shortlist side by side (review item 14, mock-up OK'd 28 Oct) ---------
@@ -1997,6 +2005,7 @@
         closePops();
         pop.hidden = !open;
         btn.setAttribute('aria-expanded', String(open));
+        mScrim(open);
       });
     });
     document.querySelectorAll('.pop').forEach(function (p) { p.addEventListener('click', function (e) { e.stopPropagation(); }); });
@@ -2064,7 +2073,8 @@
   }
 
   function closePops() {
-    document.querySelectorAll('.filter .pop').forEach(function (p) { p.hidden = true; });
+    document.querySelectorAll('.filter .pop, #popMore').forEach(function (p) { p.hidden = true; });
+    mScrim(false);
     document.querySelectorAll('[data-pop]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
   }
 
@@ -2105,7 +2115,7 @@
     // one Filters button showing how many filters are on (agreed 25 Oct)
     var tags = activeTags(), btn = document.querySelector('[data-pop=popMore]');
     btn.classList.toggle('active', tags.length > 0);
-    btn.innerHTML = 'Filters' + (tags.length ? ' <small>(' + tags.length + ')</small>' : '') + ' ▾';
+    btn.innerHTML = M ? mFilterBtn(tags.length) : 'Filters' + (tags.length ? ' <small>(' + tags.length + ')</small>' : '') + ' ▾';
     drawPins();
     restyle();
     updateCount();
@@ -2115,6 +2125,7 @@
     S.listings.forEach(function (l) { if (visible(l)) condos[l.condo] = 1; });
     var k = Object.keys(condos).length;
     document.querySelectorAll('.fshow').forEach(function (b) { b.textContent = 'Show ' + k.toLocaleString('en-SG') + ' condo' + (k === 1 ? '' : 's'); });
+    if (M) { mChips(); if (mTab === 'list') mRender(); }
   }
 
   function updateCount() {
@@ -2141,6 +2152,7 @@
     el.innerHTML = '<i class="dot" aria-hidden="true"></i>' + esc(problems.length ? problems[0][0] + (problems.length > 1 ? ' +' + (problems.length - 1) : '') : 'Data up to date');
     el.title = problems.map(function (x) { return '⚠ ' + x[1]; }).concat(lines).join('\n');
     el.classList.toggle('warn', problems.length > 0);
+    if (M) mChips();
   }
 
   // ---- search ---------------------------------------------------------------------
@@ -2208,10 +2220,522 @@
     document.addEventListener('focusin', function (e) { var t = e.target.closest('[data-tip]'); if (t) show(t); });
     document.addEventListener('focusout', hide);
     document.addEventListener('scroll', hide, true);
+    document.addEventListener('click', function (e) { var t = e.target.closest('[data-tip]'); if (t) show(t); else hide(); });   // phones: tap the ⓘ
+    document.addEventListener('touchstart', function (e) { if (!e.target.closest('[data-tip]')) hide(); }, { passive: true });
+  }
+
+  // ---- phone layout (1 Nov, from the iPhone Air mock-ups Daniel OK'd) -------------------------
+  // Its own design on phones (M): one floating search bar, a tab bar (Map · Listings · Shortlist · Compare), and
+  // Apple Maps-style sheets — a pin opens a small preview card, swipe up for the full condo page, down to close.
+  // The laptop layout is untouched; the same data, shortlist and filters are used.
+  var MTABS = [['map', 'Map', 'map'], ['list', 'Listings', 'list'], ['short', 'Shortlist', 'star'], ['compare', 'Compare', 'cols']];
+  var MICON = {
+    map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+    star: '<path d="m12 3 2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.3l1-6.2L3 9.7l6.2-.9L12 3Z"/>',
+    cols: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 4v16"/>',
+    sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+    layers: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
+    locate: '<path d="M3 11 21 3l-8 18-2-8-8-2Z"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>',
+    car: '<path d="m21 8-2 2-1.5-3.7A2 2 0 0 0 15.6 5H8.4a2 2 0 0 0-1.9 1.3L5 10 3 8"/><rect x="3" y="10" width="18" height="8" rx="2"/><path d="M7 14h.01M17 14h.01"/>',
+    train: '<rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M9 21l1-4M15 21l-1-4M9 14h.01M15 14h.01"/>',
+    alert: '<path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4M12 17h.01"/>',
+    ext: '<path d="M7 17 17 7M9 7h8v8"/>',
+    check: '<path d="m5 12 5 5 9-10"/>',
+    pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/>'
+  };
+  function mIcon(name, cls) {
+    return '<svg class="mi' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + MICON[name] + '</svg>';
+  }
+  var mTab = 'map';
+  var mList = { q: '', sort: 'score', quick: '', n: 40 };
+  var mShort = { sort: 'added' };
+  var mSel = (function () { try { return JSON.parse(localStorage.getItem('hqCmpSel')) || []; } catch (e) { return []; } })();
+  function mSaveSel() { try { localStorage.setItem('hqCmpSel', JSON.stringify(mSel)); } catch (e) { /* not remembered */ } }
+
+  function mSetup() {
+    document.documentElement.classList.add('m', 'm-tab-map');
+    var wrap = document.querySelector('.map-wrap');
+    document.body.appendChild($('detail'));            // above the Listings / Shortlist pages (the map has its own layer stack)
+    var bar = document.createElement('nav');
+    bar.id = 'mTabs'; bar.className = 'm-tabs'; bar.setAttribute('aria-label', 'Sections');
+    bar.innerHTML = MTABS.map(function (t) {
+      return '<button type="button" data-mtab="' + t[0] + '" aria-pressed="' + (t[0] === 'map') + '">' + mIcon(t[2]) + '<span>' + t[1] + '</span>' +
+        (t[0] === 'short' ? '<b class="m-badge" id="mShortN" hidden></b>' : '') + '</button>';
+    }).join('');
+    document.body.appendChild(bar);
+    var page = document.createElement('section');
+    page.id = 'mPage'; page.className = 'm-page'; page.hidden = true;
+    document.body.appendChild(page);
+    var side = document.createElement('div');
+    side.className = 'm-side';
+    side.innerHTML = '<button type="button" data-m="layers" aria-label="Show places on the map">' + mIcon('layers') + '</button>' +
+      '<button type="button" data-m="locate" aria-label="Near me">' + mIcon('locate') + '</button>';
+    wrap.appendChild(side);
+    var chips = document.createElement('div');
+    chips.id = 'mChips'; chips.className = 'm-chips';
+    wrap.appendChild(chips);
+    var layers = document.createElement('div');
+    layers.id = 'mLayers'; layers.className = 'm-layers'; layers.hidden = true;
+    document.body.appendChild(layers);
+    var scrim = document.createElement('div');
+    scrim.id = 'mScrim'; scrim.className = 'm-scrim'; scrim.hidden = true;
+    document.body.appendChild(scrim);
+    var toast = document.createElement('div');
+    toast.id = 'mToast'; toast.className = 'm-toast'; toast.hidden = true;
+    document.body.appendChild(toast);
+
+    // Filters: a full sheet with a header, the most-used filters on top and the rest folded under "More filters"
+    var pop = $('popMore');
+    document.body.appendChild(pop);                     // out of the top bar, so it can open from any tab
+    pop.insertAdjacentHTML('afterbegin', '<div class="m-fhead"><button type="button" class="link-btn" data-clear="all">Reset</button>' +
+      '<strong>Filters</strong><button type="button" class="m-x" data-mclose aria-label="Close">' + mIcon('x') + '</button></div>');
+    var groups = [];
+    pop.querySelectorAll('.ftop > div, .fcols > div').forEach(function (col) {
+      var g = null;
+      Array.prototype.slice.call(col.children).forEach(function (el) {
+        if (el.tagName === 'H4') { g = { name: el.textContent, els: [] }; groups.push(g); }
+        if (g) g.els.push(el);
+      });
+    });
+    var TOP = ['Price', 'Quick picks', 'Bedrooms', 'Walk to MRT', 'Expressway noise'];
+    var main = document.createElement('div'), more = document.createElement('details');
+    main.className = 'm-fmain'; more.className = 'm-fmore';
+    more.innerHTML = '<summary>More filters<span id="mMoreOn"></span></summary>';
+    TOP.forEach(function (t) {
+      groups.filter(function (g) { return g.name.indexOf(t) === 0 && (t !== 'Price' || g.name.trim() === 'Price'); })      // not "Price per sqft"
+        .forEach(function (g) { g.els.forEach(function (el) { main.appendChild(el); }); g.done = true; });
+    });
+    groups.forEach(function (g) { if (!g.done) g.els.forEach(function (el) { more.appendChild(el); }); });
+    var foot = pop.querySelector('.ffoot');
+    pop.querySelectorAll('.ftop, .fcols').forEach(function (el) { el.remove(); });
+    pop.insertBefore(main, foot);
+    pop.insertBefore(more, foot);
+    pop.addEventListener('click', function (e) { if (e.target.closest('[data-mclose]')) closePops(); });
+    scrim.addEventListener('click', function () { closePops(); mLayers(false); });
+
+    bar.addEventListener('click', function (e) { var b = e.target.closest('[data-mtab]'); if (b) mGoTab(b.dataset.mtab); });
+    side.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-m]');
+      if (b && b.dataset.m === 'layers') mLayers(layers.hidden);
+      if (b && b.dataset.m === 'locate') mLocate();
+    });
+    chips.addEventListener('click', function (e) { if (e.target.closest('[data-m=filters]')) mOpenFilters(e); });
+    layers.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      if (b.hasAttribute('data-mclose')) return mLayers(false);
+      if (b.dataset.place) {
+        S.placesOn[b.dataset.place] = S.placesOn[b.dataset.place] ? 0 : 1;
+        try { localStorage.setItem('hqPlacesOn', JSON.stringify(S.placesOn)); } catch (e2) { /* not remembered */ }
+        drawPlaces(); mLayers(true);
+      }
+    });
+    page.addEventListener('click', mPageClick);
+    page.addEventListener('input', function (e) {
+      if (e.target.id === 'mListQ') {
+        mList.q = e.target.value.trim(); mList.n = 40;
+        clearTimeout(mPageClick.t);
+        mPageClick.t = setTimeout(function () { $('mListBody').innerHTML = mListItems(); }, 200);
+      }
+    });
+    page.addEventListener('scroll', function (e) {           // compare: the dots follow the swipe
+      if (e.target.id !== 'mCPages') return;
+      var i = Math.round(e.target.scrollLeft / e.target.clientWidth);
+      page.querySelectorAll('.m-pager i').forEach(function (d, j) { d.classList.toggle('on', j === i); });
+    }, true);
+    mSwipeRows(page);
+    mDrag();
+    $('detail').addEventListener('click', function (e) {          // tap the preview card (not a button) → full page
+      if (S.panel && S.panel.m !== 'full' && !e.target.closest('button, a') && e.target.closest('.m-peekbody')) mSetMode('full');
+    });
+  }
+
+  function mOpenFilters(e) {
+    if (e) e.stopPropagation();
+    var btn = document.querySelector('[data-pop=popMore]');
+    if ($('popMore').hidden) btn.click();
+  }
+  function mScrim(on) { if (M) $('mScrim').hidden = !on; }
+  function mToast(text, ms) {
+    var t = $('mToast');
+    t.textContent = text; t.hidden = !text;
+    clearTimeout(mToast.t);
+    if (text && ms) mToast.t = setTimeout(function () { t.hidden = true; }, ms);
+  }
+
+  function mGoTab(tab, keepPanel) {
+    if (!keepPanel && S.panel) closePanel();
+    mLayers(false);
+    mTab = tab;
+    var root = document.documentElement;
+    MTABS.forEach(function (t) { root.classList.toggle('m-tab-' + t[0], t[0] === tab); });
+    document.querySelectorAll('[data-mtab]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.mtab === tab)); });
+    $('mPage').hidden = tab === 'map';
+    if (tab === 'map') { setTimeout(function () { map.invalidateSize(); }, 50); return; }
+    mRender(true);
+  }
+  function mRender(top) {
+    if (!M || mTab === 'map') return;
+    var page = $('mPage'), y = page.scrollTop;
+    page.innerHTML = mTab === 'list' ? mListHtml() : (mTab === 'short' ? mShortHtml() : mCompareHtml());
+    page.scrollTop = top ? 0 : y;
+  }
+  function mBadge() {
+    if (!M) return;
+    var k = S.shortlist.filter(function (x) { return S.condos[x] || (S.gone && S.gone[x]); }).length, b = $('mShortN');
+    b.textContent = k; b.hidden = !k;
+  }
+  function mChips() {
+    if (!M) return;
+    var condos = {}, tags = activeTags();
+    S.listings.forEach(function (l) { if (visible(l)) condos[l.condo] = 1; });
+    var upd = S.meta.updated ? new Date(S.meta.updated + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : '';
+    var warn = $('status') && $('status').classList.contains('warn');
+    $('mChips').innerHTML = '<span class="m-chip" title="' + esc($('status') ? $('status').title : '') + '"><i class="m-dot' + (warn ? ' warn' : '') + '"></i>' +
+      n(Object.keys(condos).length) + ' condos' + (upd ? ' · ' + upd : '') + '</span>' +
+      (tags.length ? '<button type="button" class="m-chip" data-m="filters">' + esc(tags.slice(0, 2).map(function (t) { return t[0]; }).join(' · ')) +
+        (tags.length > 2 ? ' +' + (tags.length - 2) : '') + '</button>' : '');
+    var moreOn = tags.filter(function (t) { return ['price', 'beds', 'mrt', 'xway'].indexOf(t[1]) < 0; }).length;
+    if ($('mMoreOn')) $('mMoreOn').textContent = moreOn ? ' · ' + moreOn + ' on' : '';
+  }
+  function mFilterBtn(count) {
+    return mIcon('sliders') + (count ? '<b class="m-badge">' + count + '</b>' : '');
+  }
+
+  // ---- the condo / area sheet ----
+  function mSetMode(m) {
+    if (!S.panel) return;
+    S.panel.m = m;
+    renderPanel();
+    var c = S.panel.condo && S.condos[S.panel.condo];
+    if (m === 'peek' && c && c.lat != null) showOnMap(c, false);
+  }
+  function mCover() {             // how much of the map the sheet (or tab bar) covers at the bottom, in px
+    var el = $('detail');
+    if (S.panel && el.classList.contains('open') && !el.classList.contains('m-full')) return window.innerHeight - el.getBoundingClientRect().top;
+    return 110;
+  }
+  function mSheet() {
+    var el = $('detail'), root = document.documentElement;
+    if (!S.panel) {
+      el.classList.remove('open', 'm-peek', 'm-full'); el.setAttribute('aria-hidden', 'true');
+      root.classList.remove('m-full');
+      return;
+    }
+    var full = S.panel.m === 'full';
+    var mapBtn = mTab !== 'map' && S.panel.type === 'condo' ? '<button type="button" class="m-onmap" data-maction="onmap">' + mIcon('pin') + 'Map</button>' : '';
+    el.innerHTML = '<div class="m-grab" aria-hidden="true"></div>' + (full ? mapBtn +
+      (S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(S.condos[S.panel.condo])) : mPeekHtml());
+    el.classList.add('open');
+    el.classList.toggle('m-full', full); el.classList.toggle('m-peek', !full);
+    el.setAttribute('aria-hidden', 'false');
+    root.classList.toggle('m-full', full);
+    var body = el.querySelector('.card-body');
+    if (body) body.scrollTop = 0;
+    if (full && S.panel.type === 'condo') loadGoogle(S.condos[S.panel.condo]);
+  }
+  function mRing(score) {
+    var v = score == null ? 0 : score, len = 2 * Math.PI * 25;
+    return '<span class="m-ring"><svg viewBox="0 0 58 58" aria-hidden="true"><circle cx="29" cy="29" r="25" stroke="#e6e5e1" stroke-width="4" fill="none"/>' +
+      (score == null ? '' : '<circle cx="29" cy="29" r="25" stroke="' + CH.green + '" stroke-width="4" fill="none" stroke-linecap="round" stroke-dasharray="' +
+        (len * v / 100).toFixed(1) + ' ' + len.toFixed(1) + '" transform="rotate(-90 29 29)"/>') +
+      '</svg><b>' + (score == null ? '—' : score) + '</b><small>score</small></span>';
+  }
+  function mWarning(c) {          // the one watch-out worth showing on the preview card / list tags: [text, 'bad' | 'warn']
+    var nb = c.near || {}, xl = xwayLevel(c);
+    if (xl) return [nb.xway.name + ' ' + metres(nb.xway.m), xl === 'red' ? 'bad' : 'warn'];
+    if (nb.dorm && nb.dorm.m <= WORKERS_CLOSE) return ['Dormitory ' + metres(nb.dorm.m), nb.dorm.m <= WORKERS_VERY ? 'bad' : 'warn'];
+    if (nb.spot && nb.spot.m <= WORKERS_CLOSE) return ['Gathering spot ' + metres(nb.spot.m), 'warn'];
+    if (nb.worship && nb.worship.m <= WORSHIP_CLOSE) return ['Worship ' + metres(nb.worship.m), nb.worship.m <= WORSHIP_VERY ? 'bad' : 'warn'];
+    if (nb.worshipPlanned && nb.worshipPlanned.m <= WORKERS_CLOSE) return ['Planned worship ' + metres(nb.worshipPlanned.m), 'warn'];
+    return null;
+  }
+  function mTenure(c) {
+    var left = leaseLeft(c);
+    return left === Infinity ? 'Freehold' : (left != null ? left + ' yrs lease left' : (c.tenure || ''));
+  }
+  function mPeekHtml() {
+    if (S.panel.type === 'area') return mAreaPeek(S.panel.area);
+    var c = S.condos[S.panel.condo], a = S.areas[c.area] || {}, units = shown(c).length ? shown(c) : c.units;
+    var star = S.shortlist.indexOf(c.key) >= 0, nb = c.near || {}, rh = rushOf(nb), groups = sameUnits(units);
+    var beds = range(units.map(function (l) { return l.beds; }), function (b) { return b === 0 ? 'studio' : b; });
+    var facts = [];
+    if (rh && rh.am) facts.push('<span class="m-fact">' + mIcon('car') + rh.am.min + ' min at 8:30am</span>');
+    else if (nb.drive) facts.push('<span class="m-fact">' + mIcon('car') + nb.drive.min + ' min drive</span>');
+    if (nb.mrt) {
+      var walk = nb.mrt.walkMin, close = walk ? walk <= 10 : nb.mrt.m <= CLOSE.mrt;
+      facts.push('<span class="m-fact' + (close ? ' good' : '') + '">' + mIcon('train') + 'MRT ' + (walk ? walk + ' min' : metres(nb.mrt.m)) + '</span>');
+    }
+    var w = mWarning(c);
+    if (w) facts.push('<span class="m-fact ' + w[1] + '">' + mIcon('alert') + esc(w[0]) + '</span>');
+    var cheapest = units[0];
+    return '<div class="card-body m-peekbody">' +
+      '<div class="m-row"><div><div class="title">' + esc(c.name) + (c.ec ? '<span class="badge">EC</span>' : '') + '</div>' +
+      '<div class="sub">' + esc([a.name, c.district, mTenure(c), c.built ? 'built ' + c.built : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+      '<button type="button" class="m-x" data-action="close" aria-label="Close">' + mIcon('x') + '</button></div>' +
+      '<div class="m-row m-mid"><div><div class="m-price">' + (groups.length > 1 ? '<small>from</small>' : '') + full(cheapest.price) + '</div>' +
+      '<div class="sub">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + ' for sale' + (beds !== '—' ? ' · ' + beds + ' bed' : '') + '</div></div>' +
+      mRing(c.score ? c.score.total : null) + '</div>' +
+      (facts.length ? '<div class="m-facts">' + facts.join('') + '</div>' : '') +
+      '<div class="m-actions"><button type="button" class="m-btn' + (star ? ' dark' : '') + '" data-action="star" aria-pressed="' + star + '">' +
+      (star ? '★' : '☆') + ' Shortlist</button><a class="m-btn" href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">Open listing ' + mIcon('ext') + '</a></div>' +
+      '<div class="m-hint">Swipe up for details</div></div>';
+  }
+  function mAreaPeek(id) {
+    var a = S.areas[id], s = areaStats(id), u = a.ura, k = areaCondos(id).length;
+    var badge = u && u.badge ? '<span class="chip ' + (u.badge === 'Growing' ? 'good' : (u.badge === 'Softening' ? 'bad' : 'flat')) + '">' + u.badge + '</span>' : '';
+    return '<div class="card-body m-peekbody">' +
+      '<div class="m-row"><div><div class="title">' + esc(a.name) + '</div><div class="sub">Planning area' + (a.label ? ' · ' + esc(a.label) : '') + '</div></div>' +
+      '<button type="button" class="m-x" data-action="close" aria-label="Close">' + mIcon('x') + '</button></div>' +
+      '<div class="m-row m-mid"><div><div class="m-price">' + (u && u.psf12 ? full(u.psf12) : full(s.psf)) + '<small> psf</small></div>' +
+      '<div class="sub">' + (u && u.psf12 ? "URA sales, last 12 months" : "typical asking") + '</div></div>' + badge + '</div>' +
+      '<div class="m-facts"><span class="m-fact">' + k + ' condo' + (k === 1 ? '' : 's') + ' · ' + s.n + ' for sale</span>' +
+      (a.crowd ? '<span class="m-fact">#' + a.crowd.rank + ' of ' + a.crowd.of + ' busiest</span>' : '') + '</div>' +
+      '<div class="m-actions"><button type="button" class="m-btn dark" data-mfull="condos">Condos (' + k + ')</button>' +
+      '<button type="button" class="m-btn" data-mfull="summary">Area details</button></div>' +
+      '<div class="m-hint">Swipe up for details</div></div>';
+  }
+  // Drag the sheet: up = full page, down = smaller / close (Apple Maps style)
+  function mDrag() {
+    var el = $('detail'), y0 = null, dy = 0, head = false;
+    el.addEventListener('touchstart', function (e) {
+      if (!S.panel || e.target.closest('input, select, textarea, .gphotos, .cmptable')) return;
+      var body = el.querySelector('.card-body'), full = el.classList.contains('m-full');
+      head = !!e.target.closest('.m-grab, .card-head');
+      if (full && !head && !(body && body.scrollTop <= 0)) return;
+      y0 = e.touches[0].clientY; dy = 0;
+    }, { passive: true });
+    el.addEventListener('touchmove', function (e) {
+      if (y0 == null) return;
+      dy = e.touches[0].clientY - y0;
+      var full = el.classList.contains('m-full');
+      if (full && (dy < 0 || (!head && el.querySelector('.card-body').scrollTop > 0))) { y0 = null; el.style.transform = ''; return; }
+      el.style.transition = 'none';
+      el.style.transform = 'translateY(' + Math.max(dy, full ? 0 : -40) + 'px)';
+    }, { passive: true });
+    function end() {
+      if (y0 == null) return;
+      y0 = null; el.style.transition = ''; el.style.transform = '';
+      var full = el.classList.contains('m-full');
+      if (!full && dy < -40) mSetMode('full');
+      else if (!full && dy > 70) closePanel();
+      else if (full && dy > 90) { if (mTab === 'map') mSetMode('peek'); else closePanel(); }
+    }
+    el.addEventListener('touchend', end);
+    el.addEventListener('touchcancel', end);
+  }
+
+  // ---- Listings tab ----
+  function mThumb(c) {
+    var g = S.meta.google && !S.meta.online, src = g ? '/api/google/thumb?condo=' + encodeURIComponent(c.key) : mapThumb(c);
+    return src ? '<img src="' + esc(src) + '" alt="" loading="lazy"' + (g && mapThumb(c) ? ' onerror="this.onerror=null;this.src=\'' + esc(mapThumb(c)) + '\'"' : '') + '>' : '<span class="m-noimg"></span>';
+  }
+  function mTags(c) {
+    var u = shown(c), out = [];
+    if (u.some(function (l) { return daysAgo(l.firstSeen) <= 7; })) out.push(['New', 'good']);
+    var drop = Math.min.apply(null, sameUnits(u).map(priceMove).concat([0]));
+    if (drop < 0) out.push(['▼ ' + money(-drop), 'good']);
+    var w = mWarning(c);
+    if (w) out.push(w);
+    return out.slice(0, 2).map(function (t) { return '<span class="m-tag ' + t[1] + '">' + esc(t[0]) + '</span>'; }).join('');
+  }
+  function mItem(c, lead) {
+    var a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units, k = sameUnits(u).length;
+    return '<button type="button" class="m-item" data-open="' + esc(c.key) + '">' + (lead || '') + mThumb(c) +
+      '<span class="m-mid"><span class="m-nm">' + esc(c.name) + '</span><span class="m-ar">' + esc([a.name, c.district].filter(Boolean).join(' · ')) +
+      ' · ' + k + ' for sale</span><span class="m-tags">' + mTags(c) + '</span></span>' +
+      '<span class="m-rt"><span class="m-pr">' + money(u[0].price) + '</span>' + (c.score && c.score.total != null ? '<span class="m-sc">Score ' + c.score.total + '</span>' : '') + '</span></button>';
+  }
+  function mListCondos() {
+    var q = mList.q.toLowerCase();
+    var cs = Object.keys(S.condos).map(function (k) { return S.condos[k]; }).filter(function (c) { return shown(c).length; });
+    if (q) cs = cs.filter(function (c) { return (c.name + ' ' + c.address + ' ' + c.mrt + ' ' + ((S.areas[c.area] || {}).name || '')).toLowerCase().indexOf(q) >= 0; });
+    if (mList.quick === 'new') cs = cs.filter(function (c) { return shown(c).some(function (l) { return daysAgo(l.firstSeen) <= 7; }); });
+    if (mList.quick === 'drop') cs = cs.filter(function (c) { return shown(c).some(function (l) { return l.wasPrice && l.price < l.wasPrice; }); });
+    if (mList.quick === 'mrt') cs = cs.filter(function (c) { var m = c.near && c.near.mrt; return m && (m.walkMin ? m.walkMin <= 10 : m.m <= CLOSE.mrt); });
+    var newest = function (c) { return shown(c).reduce(function (t, l) { return (l.firstSeen || '') > t ? l.firstSeen : t; }, ''); };
+    cs.sort(function (x, y) {
+      if (mList.sort === 'price') return fromPrice(x) - fromPrice(y);
+      if (mList.sort === 'new') return newest(y).localeCompare(newest(x)) || scoreOf(y) - scoreOf(x);
+      return scoreOf(y) - scoreOf(x) || fromPrice(x) - fromPrice(y);
+    });
+    return cs;
+  }
+  function mListItems() {
+    var cs = mListCondos();
+    return (cs.length ? cs.slice(0, mList.n).map(function (c) { return mItem(c); }).join('') : '<div class="m-empty">No condos match. Try fewer filters.</div>') +
+      (cs.length > mList.n ? '<button type="button" class="m-more" data-mmore>Show more (' + n(cs.length - mList.n) + ' left)</button>' : '');
+  }
+  function mListHtml() {
+    var units = S.listings.filter(visible).length, condos = {}, tags = activeTags();
+    S.listings.forEach(function (l) { if (visible(l)) condos[l.condo] = 1; });
+    var upd = S.meta.updated ? new Date(S.meta.updated + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : '';
+    function chip(kind, v, label) {
+      var on = mList[kind] === v;
+      return '<button type="button" class="m-chip2" data-ml="' + kind + '" data-v="' + v + '" aria-pressed="' + on + '">' + label + '</button>';
+    }
+    return '<header class="m-lt"><div class="m-row"><h1>Listings</h1><button type="button" class="m-round dark" data-m="filters" aria-label="Filters">' + mFilterBtn(tags.length) + '</button></div>' +
+      '<div class="m-meta">' + n(Object.keys(condos).length) + ' condos · ' + n(units) + ' units' + (upd ? ' · updated ' + upd : '') + '</div>' +
+      '<label class="m-field">' + mIcon('search') + '<input id="mListQ" type="search" placeholder="Search these listings" value="' + esc(mList.q) + '" autocomplete="off"></label>' +
+      '<div class="m-chiprow">' + chip('sort', 'score', 'Best score') + chip('sort', 'price', 'Lowest price') + chip('sort', 'new', 'Newest') +
+      '<span class="m-sep"></span>' + chip('quick', 'new', 'New this week') + chip('quick', 'drop', 'Price dropped') + chip('quick', 'mrt', 'Near MRT') + '</div></header>' +
+      '<div class="m-list" id="mListBody">' + mListItems() + '</div>';
+  }
+
+  // ---- Shortlist tab ----
+  function mShortHtml() {
+    var all = S.shortlist.filter(function (k) { return S.condos[k]; });
+    all.sort(function (x, y) {
+      var a = S.condos[x], b = S.condos[y];
+      if (mShort.sort === 'score') return scoreOf(b) - scoreOf(a);
+      if (mShort.sort === 'price') return fromPrice(a) - fromPrice(b);
+      return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || '');
+    });
+    mSel = mSel.filter(function (k) { return all.indexOf(k) >= 0; });
+    var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; });
+    function chip(v, label) { return '<button type="button" class="m-chip2" data-ms="' + v + '" aria-pressed="' + (mShort.sort === v) + '">' + label + '</button>'; }
+    var rows = all.map(function (k) {
+      var on = mSel.indexOf(k) >= 0;
+      return '<div class="m-swipe"><button type="button" class="m-del" data-mrem="' + esc(k) + '">Remove</button>' +
+        mItem(S.condos[k], '<span class="m-check' + (on ? ' on' : '') + '" data-msel="' + esc(k) + '" role="checkbox" aria-checked="' + on + '" aria-label="Compare">' + (on ? mIcon('check') : '') + '</span>') + '</div>';
+    }).join('') + gone.map(function (k) {
+      var g = S.gone[k];
+      return '<div class="m-item gone"><span class="m-mid"><span class="m-nm">' + esc(g.name) + '</span><span class="m-ar">No longer listed · last seen ' + esc(shortDate(g.seen)) + '</span></span>' +
+        '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
+    }).join('');
+    return '<header class="m-lt"><h1>Shortlist</h1><div class="m-meta">' + (all.length + gone.length) + ' condo' + (all.length + gone.length === 1 ? '' : 's') +
+      ' · shared with your laptop and Mac</div>' +
+      (all.length > 1 ? '<div class="m-chiprow">' + chip('added', 'Newest added') + chip('score', 'Best score') + chip('price', 'Price') + '</div>' : '') + '</header>' +
+      '<div class="m-list">' + (rows || '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo and tap ☆ Shortlist.</div>') + '</div>' +
+      (all.length > 1 ? '<div class="m-hint">Tick condos to compare · swipe left to remove</div>' : '') +
+      (mSel.length >= 2 ? '<button type="button" class="m-fab" data-mcmp>' + mIcon('cols') + 'Compare ' + mSel.length + '</button>' : '');
+  }
+  // Swipe a shortlist row left to show Remove (like Mail)
+  function mSwipeRows(page) {
+    var row = null, x0 = 0, y0 = 0, dx = 0, sideways = null;
+    page.addEventListener('touchstart', function (e) {
+      var r = e.target.closest('.m-swipe');
+      page.querySelectorAll('.m-swipe.open').forEach(function (o) { if (o !== r) o.classList.remove('open'); });
+      if (!r) return;
+      row = r; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; sideways = null;
+    }, { passive: true });
+    page.addEventListener('touchmove', function (e) {
+      if (!row) return;
+      var mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+      if (sideways == null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) sideways = Math.abs(mx) > Math.abs(my);
+      if (!sideways) return;
+      dx = mx + (row.classList.contains('open') ? -96 : 0);
+      row.querySelector('.m-item').style.transition = 'none';
+      row.querySelector('.m-item').style.transform = 'translateX(' + Math.min(0, Math.max(dx, -120)) + 'px)';
+    }, { passive: true });
+    page.addEventListener('touchend', function () {
+      if (!row) return;
+      var it = row.querySelector('.m-item');
+      it.style.transition = ''; it.style.transform = '';
+      if (sideways) { row.classList.toggle('open', dx < -48); mSwipeRows.justSwiped = Date.now(); }
+      row = null;
+    });
+  }
+
+  // ---- Compare tab: two condos side by side, swipe sideways for the next pair ----
+  function mCmpKeys() {
+    var pool = comparePool(), keys = mSel.filter(function (k) { return pool.indexOf(k) >= 0; });
+    return (keys.length >= 2 ? keys : pool).slice(0, COMPARE_MAX);
+  }
+  function mCompareHtml() {
+    var keys = mCmpKeys();
+    var head = '<header class="m-lt"><div class="m-row"><h1>Compare</h1>' + (keys.length >= 2 ? '<button type="button" class="m-chip2" data-mpick>Choose</button>' : '') + '</div>';
+    if (keys.length < 2) return head + '<div class="m-meta">Shortlist at least 2 condos to compare them.</div></header>' +
+      '<div class="m-empty">Tap ☆ Shortlist on a condo, then come back here.</div>';
+    var cs = keys.map(function (k) { return S.condos[k]; }), facts = cs.map(compareFacts), pages = [];
+    for (var i = 0; i + 1 < cs.length; i++) pages.push([i, i + 1]);
+    function cell(f, r, cls) { return '<span class="' + cls + '">' + r[2](f[r[1]], f) + '</span>'; }
+    var html = pages.map(function (p) {
+      var fs = p.map(function (i) { return facts[i]; });
+      var top = '<div class="m-cmphead">' + p.map(function (i) {
+        var c = cs[i], a = S.areas[c.area] || {};
+        return '<button type="button" class="m-ch" data-open="' + esc(c.key) + '"><span class="m-nm">' + esc(c.name) + '</span><span class="m-ar">' +
+          esc([a.name, c.district].filter(Boolean).join(' · ')) + '</span><span class="m-cs"><b>' + (facts[i].score != null ? facts[i].score : '—') + '</b>score</span></button>';
+      }).join('') + '</div>';
+      var body = COMPARE_ROWS.map(function (g) {
+        return '<div class="m-grp">' + g[0] + '</div><div class="m-crow">' + g[1].map(function (r) {
+          var vals = fs.map(function (f) { return f[r[1]] === Infinity ? 1e9 : f[r[1]]; });
+          var good = null, bad = null;
+          if (r[3] && vals[0] != null && vals[1] != null && vals[0] !== vals[1] && typeof vals[0] === 'number') {
+            var lo = vals[0] < vals[1] ? 0 : 1;
+            good = r[3] === 'low' ? lo : 1 - lo; bad = 1 - good;
+          }
+          return '<div class="m-r"><div class="m-lab">' + r[0] + '</div><div class="m-v">' +
+            fs.map(function (f, j) { return cell(f, r, j === good ? 'g' : (j === bad ? 'b' : '')); }).join('') + '</div></div>';
+        }).join('') + '</div>';
+      }).join('');
+      return '<section class="m-cpage">' + top + body + '</section>';
+    }).join('');
+    return head + '<div class="m-meta">' + cs.length + ' condos · green = better, red = weaker</div></header>' +
+      (pages.length > 1 ? '<div class="m-pager">' + pages.map(function (_, i) { return '<i' + (i ? '' : ' class="on"') + '></i>'; }).join('') + '</div>' : '') +
+      '<div class="m-cpages" id="mCPages">' + html + '</div>';
+  }
+
+  function mPageClick(e) {
+    var b = e.target.closest('button, [data-msel]');
+    if (!b) return;
+    if (b.dataset.msel) {
+      e.stopPropagation();
+      var k = b.dataset.msel, i = mSel.indexOf(k);
+      if (i >= 0) mSel.splice(i, 1); else mSel.push(k);
+      mSaveSel(); return mRender();
+    }
+    if (b.dataset.mrem) { var r = b.dataset.mrem; mSel = mSel.filter(function (x) { return x !== r; }); mSaveSel(); return toggleShort(r); }
+    if (b.dataset.open) {
+      if (mSwipeRows.justSwiped && Date.now() - mSwipeRows.justSwiped < 400) return;
+      var sw = b.closest('.m-swipe');
+      if (sw && sw.classList.contains('open')) { sw.classList.remove('open'); return; }
+      return openCondo(b.dataset.open, { full: true });
+    }
+    if (b.dataset.m === 'filters') return mOpenFilters(e);
+    if (b.dataset.ml) { mList[b.dataset.ml] = mList[b.dataset.ml] === b.dataset.v && b.dataset.ml === 'quick' ? '' : b.dataset.v; mList.n = 40; return mRender(true); }
+    if (b.hasAttribute('data-mmore')) { mList.n += 40; $('mListBody').innerHTML = mListItems(); return; }
+    if (b.dataset.ms) { mShort.sort = b.dataset.ms; return mRender(); }
+    if (b.hasAttribute('data-mcmp')) return mGoTab('compare');
+    if (b.hasAttribute('data-mpick')) return mGoTab('short');
+  }
+
+  // ---- Layers sheet + Near me ----
+  function mLayers(open) {
+    var el = $('mLayers');
+    if (!el) return;
+    el.hidden = !open;
+    if (!open) return;
+    el.innerHTML = '<div class="m-grab" aria-hidden="true"></div><div class="m-row"><strong>Show on map</strong>' +
+      '<button type="button" class="m-x" data-mclose aria-label="Close">' + mIcon('x') + '</button></div>' +
+      '<div class="m-lgrid">' + PLACE_KINDS.map(function (k) {
+        return '<button type="button" data-place="' + k[0] + '" aria-pressed="' + !!S.placesOn[k[0]] + '"><span style="--c:' + k[2] + '">' + iconSvg(k[0]) + '</span>' + k[1] + '</button>';
+      }).join('') + '</div>' +
+      (S.panel ? '' : '<div class="m-hint">Places show around the condo or area you open.</div>');
+  }
+  var meLayer;
+  function mLocate() {
+    if (!navigator.geolocation) return mToast('This browser can\'t share your location.', 4000);
+    mToast('Finding you…');
+    navigator.geolocation.getCurrentPosition(function (p) {
+      var ll = [p.coords.latitude, p.coords.longitude];
+      if (!meLayer) meLayer = L.layerGroup().addTo(map);
+      meLayer.clearLayers();
+      L.circle(ll, { radius: Math.min(p.coords.accuracy || 50, 400), color: '#2f7cf6', weight: 1, fillColor: '#2f7cf6', fillOpacity: 0.12, interactive: false }).addTo(meLayer);
+      L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#2f7cf6', fillOpacity: 1, interactive: false }).addTo(meLayer);
+      map.flyTo(ll, 15, { duration: 0.6 });
+      mToast('');
+    }, function () {
+      mToast('Location is off — allow it in Settings → Privacy → Location Services → Safari.', 5000);
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
   }
 
   // ---- start ------------------------------------------------------------------------
   function start() {
+    if (M) mSetup();
     setupMap();
     setupFilters();
     setupSearch();
@@ -2258,6 +2782,7 @@
       fillDistrictChips();
       applyFilters();
       updateStatus();
+      if (M) mBadge();
     }).catch(function () {
       $('count').textContent = "Couldn't load the listings — is the HomeQuest Terminal window still open?";
     });
