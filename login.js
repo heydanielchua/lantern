@@ -191,11 +191,30 @@
     var nav = document.querySelector('.topnav'); if (nav) nav.appendChild(lock);
   }
 
+  // The scrambled data file is kept on this device between visits (1 Nov, faster opening) and only downloaded again
+  // after an update from the Mac (each update has its own address). It stays scrambled; older copies are removed.
+  function dataFile(fresh) {
+    var url = new URL('data.bin?v=' + encodeURIComponent(CFG.published), location.href).href;
+    var store = window.caches ? caches.open('hq-data').catch(function () { return null; }) : Promise.resolve(null);
+    return store.then(function (c) {
+      return (c && !fresh ? c.match(url) : Promise.resolve(null)).then(function (hit) {
+        if (hit) return hit.arrayBuffer();
+        return fetch(url, { cache: fresh ? 'reload' : 'force-cache' }).then(function (r) {
+          if (!r.ok) throw new Error('missing');
+          if (c) {
+            c.put(url, r.clone()).then(function () { return c.keys(); }).then(function (keys) {
+              keys.forEach(function (k) { if (k.url !== url) c.delete(k); });
+            }).catch(function () { /* not kept: just downloaded again next time */ });
+          }
+          return r.arrayBuffer();
+        });
+      });
+    });
+  }
   function unlock(key) {
     KEY = key;
-    return fetch('data.bin?v=' + encodeURIComponent(CFG.published), { cache: 'no-store' })
-      .then(function (r) { if (!r.ok) throw new Error('missing'); return r.arrayBuffer(); })
-      .then(open).then(function (d) { DATA = d; });
+    return dataFile(false).then(open).catch(function () { return dataFile(true).then(open); })     // a bad kept copy: download it again
+      .then(function (d) { DATA = d; });
   }
 
   function fail(text) { $('loginErr').textContent = text; $('loginGo').disabled = false; $('loginGo').textContent = 'Open'; }

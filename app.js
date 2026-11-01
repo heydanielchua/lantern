@@ -593,31 +593,49 @@
     return L.divIcon({ className: 'pinwrap', html: label + '<div class="' + cls + '">' + (star ? '★' : '') + '</div>', iconSize: [size, size] });
   }
 
+  // Pins are made once per condo and kept (1 Nov): a filter change only adds / removes the ones that change,
+  // instead of rebuilding every pin (faster filters, especially on the phone).
+  var markerCache = {};
   function drawPins() {
-    if (pinLayer) map.removeLayer(pinLayer);
     if (!selLayer) selLayer = L.layerGroup().addTo(map);
-    selLayer.clearLayers();
-    markers = {};
-    pinLayer = L.markerClusterGroup({
-      showCoverageOnHover: false, maxClusterRadius: 45, disableClusteringAtZoom: 17,
-      iconCreateFunction: function (cluster) {
-        var n = cluster.getChildCount(), size = n < 10 ? 30 : (n < 50 ? 36 : 44);
-        var star = cluster.getAllChildMarkers().some(function (m) { return S.shortlist.indexOf(m.options.condoKey) >= 0; });
-        return L.divIcon({ className: '', iconSize: [size, size],
-          html: '<div class="cluster' + (star ? ' has-star' : '') + '" style="width:' + size + 'px;height:' + size + 'px">' + n + '</div>' });
-      }
-    });
+    if (!pinLayer) {
+      pinLayer = L.markerClusterGroup({
+        showCoverageOnHover: false, maxClusterRadius: 45, disableClusteringAtZoom: 17,
+        iconCreateFunction: function (cluster) {
+          var n = cluster.getChildCount(), size = n < 10 ? 30 : (n < 50 ? 36 : 44);
+          var star = cluster.getAllChildMarkers().some(function (m) { return S.shortlist.indexOf(m.options.condoKey) >= 0; });
+          return L.divIcon({ className: '', iconSize: [size, size],
+            html: '<div class="cluster' + (star ? ' has-star' : '') + '" style="width:' + size + 'px;height:' + size + 'px">' + n + '</div>' });
+        }
+      });
+      map.addLayer(pinLayer);
+      pinLayer.on('animationend', declutter);
+    }
+    var want = {}, add = [], drop = [];
     Object.keys(S.condos).forEach(function (k) {
       var c = S.condos[k];
-      if (c.lat == null || !shown(c).length) return;
-      var m = L.marker([c.lat, c.lng], { icon: pinIcon(k), condoKey: k, title: c.name, riseOnHover: true });
-      m.on('click', function (e) { L.DomEvent.stopPropagation(e); S.peekOff = S.hover; hidePeek(); openCondo(k); });
-      markers[k] = m;
-      pinLayer.addLayer(m);
+      if (c.lat != null && shown(c).length) want[k] = 1;
     });
-    map.addLayer(pinLayer);
+    Object.keys(markers).forEach(function (k) {
+      if (want[k]) return;
+      var m = markers[k];
+      if (selLayer.hasLayer(m)) selLayer.removeLayer(m); else drop.push(m);
+      delete markers[k];
+    });
+    Object.keys(want).forEach(function (k) {
+      if (markers[k]) return;
+      var m = markerCache[k];
+      if (!m) {
+        var c = S.condos[k];
+        m = markerCache[k] = L.marker([c.lat, c.lng], { icon: pinIcon(k), condoKey: k, title: c.name, riseOnHover: true });
+        m.on('click', function (e) { L.DomEvent.stopPropagation(e); S.peekOff = S.hover; hidePeek(); openCondo(k); });
+      } else m.setIcon(pinIcon(k));
+      markers[k] = m;
+      add.push(m);
+    });
+    if (drop.length) pinLayer.removeLayers(drop);
+    if (add.length) pinLayer.addLayers(add);
     if (S.panel && S.panel.condo) placePin(S.panel.condo);
-    pinLayer.on('animationend', declutter);
     declutter();
   }
 
@@ -2733,6 +2751,24 @@
     }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
   }
 
+  // The data comes packed smaller (1 Nov): {_cols, _rows} tables back into the same records as before; URA sales left
+  // without a tenure use their project's. Older (unpacked) data passes through unchanged.
+  function unpack(t) {
+    if (!t || !t._cols) return t;
+    var cols = t._cols, k = cols.length;
+    return t._rows.map(function (r) { var o = {}; for (var i = 0; i < k; i++) o[cols[i]] = r[i]; return o; });
+  }
+  function unpackData(d) {
+    d.listings = unpack(d.listings) || [];
+    Object.keys(d.ura || {}).forEach(function (k) {
+      var u = d.ura[k];
+      u.sales = unpack(u.sales) || [];
+      u.sales.forEach(function (x) { if (x.tenure == null) x.tenure = u.tenure; });
+    });
+    Object.keys(d.rent || {}).forEach(function (k) { d.rent[k].rentals = unpack(d.rent[k].rentals) || []; });
+    return d;
+  }
+
   // ---- start ------------------------------------------------------------------------
   function start() {
     if (M) mSetup();
@@ -2762,6 +2798,7 @@
       if (b) openCondo(b.dataset.condo, { fly: true });
     });
     Promise.all([api('/api/data'), api('/api/areas'), api('/api/shortlist')]).then(function (r) {
+      unpackData(r[0]);
       // listings the newest full robot run didn't see are sold / taken down: hidden (kept only to label old shortlist items)
       S.listings = r[0].listings.filter(function (l) { return !l.gone; });
       S.gone = {};
