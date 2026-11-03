@@ -1681,7 +1681,8 @@
           : '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Floor plan on ' + esc(l.source) + ' →</a>';
         return '<div class="box unit"><div class="head-row"><strong>' + bedsText(l.beds) + (l.baths ? ' · ' + l.baths + ' bath' : '') + ' · ' +
           (l.size ? l.size.toLocaleString('en-SG') + ' sqft' : '—') + '</strong><span class="price">' + full(l.price) + '</span></div>' +
-          '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' + esc(l.source) + (g.length > 1 ? ' · posted ' + g.length + '×' : '') + '</span>' + (g.length > 1 ? tip('Posted ' + g.length + ' times with the same beds, size and price — most likely the same unit listed by different agents.') : '') + '<span>' + '</span></div>' +
+          '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' + esc(l.source) + (l.source === 'PropertyGuru' ? ', seen ' + esc(shortDate(l.scrapedOn)) + ' — may be sold (not updated)' : '') +
+            (g.length > 1 ? ' · posted ' + g.length + '×' : '') + '</span>' + (g.length > 1 ? tip('Posted ' + g.length + ' times with the same beds, size and price — most likely the same unit listed by different agents.') : '') + '<span>' + '</span></div>' +
           '<div class="vs">' + chip + priceChip(g) + '</div>' +
           '<div class="hint">' + onMarket(g) + '</div>' +
           '<div class="links">' + floor + '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Open listing on ' + esc(l.source) + ' →</a></div></div>';
@@ -1883,6 +1884,10 @@
     renderPanel();
   }
 
+  // A shortlisted condo is never hidden (3 Nov): one with no listings at all any more (e.g. a source switched off) stays greyed
+  function shortLost() { return S.shortlist.filter(function (k) { return !S.condos[k] && !(S.gone && S.gone[k]); }); }
+  function keyName(k) { return String(k).replace(/[-_]+/g, ' ').replace(/\b\w/g, function (ch) { return ch.toUpperCase(); }); }
+
   function fromPrice(c) { var u = shown(c).length ? shown(c) : c.units; return u[0].price || 9e9; }     // no price: last
 
   function renderShortlist() {
@@ -1911,20 +1916,25 @@
       return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || '');
     });
     var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; });
+    var lost = shortLost();
     $('shortItems').innerHTML = (items.length ? items.map(function (k) {
       var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
       var on = S.panel && S.panel.condo === k;
       return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
         '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small></span>' +
         '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') + scoreTag(c) + '</span></span></button>';
-    }).join('') : (gone.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
+    }).join('') : (gone.length || lost.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
       gone.map(function (k) {      // every unit was sold / taken down since: kept, greyed, until you remove it
         var g = S.gone[k];
         return '<div class="list-item gone"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
           '<span><strong>' + esc(g.name) + '</strong><small>No longer listed · last seen ' + esc(shortDate(g.seen)) + '</small></span>' +
           '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
+      }).join('') + lost.map(function (k) {
+        return '<div class="list-item gone"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
+          '<span><strong>' + esc(keyName(k)) + '</strong><small>Not in the current listings</small></span>' +
+          '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
       }).join('');
-    $('shortCount').textContent = all.length + gone.length;
+    $('shortCount').textContent = all.length + gone.length + lost.length;
     $('btnCompare').hidden = all.length < 2;
     if (S.compare) renderCompare();
     if (M) { mBadge(); if (mTab === 'short' || mTab === 'compare') mRender(); }
@@ -2534,7 +2544,7 @@
   }
   function mBadge() {
     if (!M) return;
-    var k = S.shortlist.filter(function (x) { return S.condos[x] || (S.gone && S.gone[x]); }).length, b = $('mShortN');
+    var k = S.shortlist.length, b = $('mShortN');            // every saved one, including greyed ones
     b.textContent = k; b.hidden = !k;
   }
   function mChips() {
@@ -2754,7 +2764,7 @@
       return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || '');
     });
     mSel = mSel.filter(function (k) { return all.indexOf(k) >= 0; });
-    var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; });
+    var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; }), lost = shortLost();
     function chip(v, label) { return '<button type="button" class="m-chip2" data-ms="' + v + '" aria-pressed="' + (mShort.sort === v) + '">' + label + '</button>'; }
     var rows = all.map(function (k) {
       var on = mSel.indexOf(k) >= 0;
@@ -2764,8 +2774,12 @@
       var g = S.gone[k];
       return '<div class="m-item gone"><span class="m-mid"><span class="m-nm">' + esc(g.name) + '</span><span class="m-ar">No longer listed · last seen ' + esc(shortDate(g.seen)) + '</span></span>' +
         '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
+    }).join('') + lost.map(function (k) {
+      return '<div class="m-item gone"><span class="m-mid"><span class="m-nm">' + esc(keyName(k)) + '</span><span class="m-ar">Not in the current listings</span></span>' +
+        '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
     }).join('');
-    return '<header class="m-lt"><h1>Shortlist</h1><div class="m-meta">' + (all.length + gone.length) + ' condo' + (all.length + gone.length === 1 ? '' : 's') +
+    var total = all.length + gone.length + lost.length;
+    return '<header class="m-lt"><h1>Shortlist</h1><div class="m-meta">' + total + ' condo' + (total === 1 ? '' : 's') +
       ' · shared with your laptop and Mac</div>' +
       (all.length > 1 ? '<div class="m-chiprow">' + chip('added', 'Newest added') + chip('score', 'Best score') + chip('price', 'Price') + '</div>' : '') + '</header>' +
       '<div class="m-list">' + (rows || '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo and tap ☆ Shortlist.</div>') + '</div>' +
