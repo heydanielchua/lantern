@@ -14,8 +14,13 @@
     shortView: { q: '', area: '', beds: 0, sort: 'added' },
     eview: 'all',      // ethnic groups: 'all' residents or 'private' (condo & landed estimate)
     filters: { min: 0, max: 0, sizeMin: 0, sizeMax: 0, psfMin: 0, psfMax: 0, beds: [], floor: [], types: [], tenure: [], lease: [], age: [], baths: [],
-      mrt: [], rent: [], region: [], districts: [], listed: [], xway: [], other: [] }
+      mrt: [], rent: [], region: [], districts: [], listed: [], xway: [], below: [], other: [] }
   };
+  // Below recent sales + price map (built 3 Nov from the mock-ups Daniel OK'd): switches remembered on each device
+  function remembered(name, dflt) { try { var v = JSON.parse(localStorage.getItem(name)); return v == null ? dflt : v; } catch (e) { return dflt; } }
+  function remember(name, v) { try { localStorage.setItem(name, JSON.stringify(v)); } catch (e) { /* not remembered */ } }
+  S.belowOn = remembered('hqBelow', false);
+  S.pm = remembered('hqPriceMap', { on: false, mode: 'sg' });
   // Near-expressway flag (agreed 21 Oct, built 29 Oct): red / orange distances in metres, adjustable in Filters (remembered)
   var XWAY = (function () {
     try { var v = JSON.parse(localStorage.getItem('hqXway')); if (v && v.red > 0 && v.orange > v.red) return v; } catch (e) { /* defaults */ }
@@ -87,6 +92,36 @@
     var x = c && c.near && c.near.xway;
     return !x ? '' : (x.m <= XWAY.red ? 'red' : (x.m <= XWAY.orange ? 'orange' : ''));
   }
+  // A unit's asking $psf vs URA sales of similar-size units (±15%) in the same condo, last 2 years — at least 3 sales.
+  var BELOW = { some: 5, well: 10, check: 25 };          // % below: shown / darker / "check this" (agreed 3 Nov)
+  function vsSimilar(l, c) {
+    if (l._vs !== undefined) return l._vs;
+    var r = null;
+    if (c && c.ura && l.psf && l.size) {
+      var cut = monthsAgo(24), sim = c.ura.sales.filter(function (x) { return x.month >= cut && Math.abs(x.sqft - l.size) <= l.size * 0.15; });
+      if (sim.length >= 3) {
+        var med = median(sim.map(function (x) { return x.psf; }));
+        r = { pct: Math.round(100 * (l.psf - med) / med), psf: Math.round(med), n: sim.length };
+      }
+    }
+    return (l._vs = r);
+  }
+  function belowOf(c) {             // the condo's biggest gap among the units shown, if one is 5%+ below: {pct, l, vs, count, check}
+    var best = null, count = 0;
+    shown(c).forEach(function (l) {
+      var v = vsSimilar(l, c);
+      if (!v) return;
+      if (v.pct <= -BELOW.some) count++;
+      if (!best || v.pct < best.vs.pct) best = { l: l, vs: v };
+    });
+    return best && best.vs.pct <= -BELOW.some ? { pct: best.vs.pct, l: best.l, vs: best.vs, count: count, check: best.vs.pct < -BELOW.check } : null;
+  }
+  function belowText(b) { return '▼ ' + Math.abs(b.pct) + '% under recent sales' + (b.check ? ' · check this' : ''); }
+  function belowNote(b) {
+    return '<b>' + (b.l.beds ? b.l.beds + '-bed · ' : '') + n(b.l.size) + ' sqft at ' + full(b.l.psf) + ' psf</b> — similar units here sold for about ' +
+      full(b.vs.psf) + ' psf (' + b.vs.n + ' sales, last 2 years).' + (b.count > 1 ? ' ' + b.count + ' units asking 5%+ below.' : '') +
+      (b.check ? ' Over 25% below: double-check the listing — it may be a mistake or an unusual unit.' : '');
+  }
   function daysAgo(d) { return d ? (Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5 : Infinity; }
   function visible(l) {
     var f = S.filters, c = S.condos[l.condo];
@@ -112,6 +147,7 @@
     }
     if (f.rent.length && f.rent.indexOf(rentLevel(c)) < 0) return false;
     if (f.xway.length) { var xl = xwayLevel(c); if (xl === 'red' || (xl && f.xway[0] === 'orange')) return false; }
+    if (f.below.length) { var bv = vsSimilar(l, c); if (!bv || bv.pct > -(+f.below[0])) return false; }
     if (f.region.length && f.region.indexOf(regionOf(l.district)) < 0) return false;
     if (f.districts.length && f.districts.indexOf(l.district) < 0) return false;
     if (f.listed.length && daysAgo(l.firstSeen) > +f.listed[0]) return false;
@@ -532,6 +568,7 @@
     map.on('click', function () { closePanel(); if (M) mLayers(false); });
     map.on('movestart', hidePeek);
     map.on('zoomend', zoomClass);
+    map.on('zoomend', function () { if (S.pm.on) drawPriceMap(); });
     map.on('moveend', declutter);
     zoomClass();
   }
@@ -543,8 +580,13 @@
 
   function areaStyle(id) {
     var on = S.panel && S.panel.area === id, hov = S.hover === id;
+    if (S.pm.on) {                     // price map: greener = cheaper, redder = dearer than Singapore / its region
+      var f = pmFill(pmPct(id));
+      return { color: on || hov ? '#4C7458' : '#ffffff', weight: on ? 2 : (hov ? 1.5 : 1), opacity: on || hov ? 1 : 0.9,
+        dashArray: f ? null : '3 4', fillColor: f ? f.c : '#ffffff', fillOpacity: f ? f.o + (on ? 0.1 : 0) : 0 };
+    }
     var has = areaListings(id).length > 0;
-    return {
+    return { dashArray: null,
       color: on || hov ? '#4C7458' : '#8d8c86', weight: on ? 2 : (hov ? 1.5 : 1), opacity: on || hov ? 1 : 0.45,
       fillColor: '#4C7458', fillOpacity: on ? 0.26 : (hov ? 0.12 : (has ? 0.03 : 0.0))     // sage highlight (agreed 24 Oct)
     };
@@ -588,9 +630,14 @@
     var star = S.shortlist.indexOf(key) >= 0;
     var sel = S.panel && S.panel.condo === key;
     var cls = 'pin' + (star ? ' star' : '') + (sel ? ' selected' : '');
+    var b = S.belowOn && belowOf(c), bl = '';
+    if (b) {
+      cls += b.check ? ' bcheck' : (b.pct <= -BELOW.well ? ' below2' : ' below');
+      bl = '<span class="bpct' + (b.check ? ' q' : '') + '">−' + Math.abs(b.pct) + '%' + (b.check ? ' ?' : '') + '</span>';
+    }
     var size = sel ? 24 : (star ? 22 : 16);
     var label = '<div class="plabel' + (star || sel ? ' always' : '') + (star ? ' starred' : '') + '">' + (star ? '★ ' : '') + esc(c.name) + '</div>';
-    return L.divIcon({ className: 'pinwrap', html: label + '<div class="' + cls + '">' + (star ? '★' : '') + '</div>', iconSize: [size, size] });
+    return L.divIcon({ className: 'pinwrap', html: label + '<div class="' + cls + '">' + (star ? '★' : '') + bl + '</div>', iconSize: [size, size] });
   }
 
   // Pins are made once per condo and kept (1 Nov): a filter change only adds / removes the ones that change,
@@ -603,9 +650,12 @@
         showCoverageOnHover: false, maxClusterRadius: 45, disableClusteringAtZoom: 17,
         iconCreateFunction: function (cluster) {
           var n = cluster.getChildCount(), size = n < 10 ? 30 : (n < 50 ? 36 : 44);
-          var star = cluster.getAllChildMarkers().some(function (m) { return S.shortlist.indexOf(m.options.condoKey) >= 0; });
+          var kids = cluster.getAllChildMarkers();
+          var star = kids.some(function (m) { return S.shortlist.indexOf(m.options.condoKey) >= 0; });
+          var nb = S.belowOn ? kids.filter(function (m) { return S.condos[m.options.condoKey] && belowOf(S.condos[m.options.condoKey]); }).length : 0;
           return L.divIcon({ className: '', iconSize: [size, size],
-            html: '<div class="cluster' + (star ? ' has-star' : '') + '" style="width:' + size + 'px;height:' + size + 'px">' + n + '</div>' });
+            html: '<div class="cluster' + (star ? ' has-star' : '') + (nb ? ' below' : '') + '" style="width:' + size + 'px;height:' + size + 'px">' + n +
+              (nb ? '<span class="bpct">' + nb + ' below</span>' : '') + '</div>' });
         }
       });
       map.addLayer(pinLayer);
@@ -635,6 +685,7 @@
     });
     if (drop.length) pinLayer.removeLayers(drop);
     if (add.length) pinLayer.addLayers(add);
+    if (S.belowOn) Object.keys(markers).forEach(function (k) { if (add.indexOf(markers[k]) < 0) markers[k].setIcon(pinIcon(k)); });   // gaps follow the filters
     if (S.panel && S.panel.condo) placePin(S.panel.condo);
     declutter();
   }
@@ -687,6 +738,7 @@
       '<span>' + s.n + ' listing' + (s.n === 1 ? '' : 's') + ' · typical ' + money(s.price) + '</span>' +
       '<span>Typical ' + full(s.psf) + ' psf' + (s.beds != null ? ' · mostly ' + bedsText(s.beds) : '') + '</span>' +
       '<span>' + s.freehold + ' freehold · MRT ≤10 min ' + s.mrt + '</span>' +
+      (pmLine(id) ? '<span>Typical $psf ' + pmLine(id) + '</span>' : '') +
       '<span class="foot">Click the area for full details</span>';
     el.hidden = false;
     movePeek(e);
@@ -1329,7 +1381,8 @@
       '<div class="money">' + (price ? full(price) : '—') + '</div>' +
       '<div class="pills"><span class="pill">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + ' for sale</span>' +
       (lease ? '<span class="pill">' + esc(lease) + (c.built ? ' · ' + esc(c.built) : '') + '</span>' : '') +
-      (drops ? '<span class="pill up">▼ ' + drops + ' price drop' + (drops === 1 ? '' : 's') + '</span>' : '') + '</div>' +
+      (drops ? '<span class="pill up">▼ ' + drops + ' price drop' + (drops === 1 ? '' : 's') + '</span>' : '') +
+      (belowOf(c) ? '<span class="pill ' + (belowOf(c).check ? 'warnpill' : 'up') + '" title="' + esc(belowNote(belowOf(c)).replace(/<[^>]+>/g, '')) + '">' + belowText(belowOf(c)) + '</span>' : '') + '</div>' +
       '<div class="gauge">' + gauge + '<div class="g">' + drive + '</div></div>' +
       '<div class="gl">' + parts.map(function (x) { return '<span class="' + x[2] + '"><b>' + x[1] + '</b>' + x[0] + '</span>'; }).join('') + '</div></div>';
   }
@@ -2086,7 +2139,7 @@
     if (which === 'beds' || which === 'all') f.beds.length = 0;
     if (which === 'all') {
       $('psfMin').value = $('psfMax').value = '0';
-      ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'xway', 'other'].forEach(function (k) { f[k].length = 0; });
+      ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'xway', 'below', 'other'].forEach(function (k) { f[k].length = 0; });
     }
   }
 
@@ -2119,9 +2172,10 @@
     if (f.districts.length) out.push([f.districts.map(function (d) { return d.replace(/^D0/, 'D'); }).join(', '), 'districts']);
     if (f.listed.length) out.push(['Listed ≤ ' + f.listed[0] + ' days', 'listed']);
     if (f.xway.length) out.push(['Not within ' + XWAY[f.xway[0]] + ' m of an expressway', 'xway']);
+    if (f.below.length) out.push([f.below[0] + '%+ below recent sales', 'below']);
     return out;
   }
-  var MORE_KEYS = ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'xway', 'other'];
+  var MORE_KEYS = ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'xway', 'below', 'other'];
   function applyFilters() {
     var f = S.filters;
     f.min = +$('priceMin').value; f.max = +$('priceMax').value;
@@ -2242,7 +2296,81 @@
     document.addEventListener('touchstart', function (e) { if (!e.target.closest('[data-tip]')) hide(); }, { passive: true });
   }
 
-  // ---- phone layout (1 Nov, from the iPhone Air mock-ups Daniel OK'd) -------------------------
+  // ---- below recent sales + price map (built 3 Nov from the mock-ups Daniel OK'd) --------------
+  function belowCount() {
+    return Object.keys(S.condos).filter(function (k) { var c = S.condos[k]; return shown(c).length && belowOf(c); }).length;
+  }
+  function setBelow(on) {
+    S.belowOn = on; remember('hqBelow', on);
+    Object.keys(markers).forEach(function (k) { markers[k].setIcon(pinIcon(k)); });
+    if (pinLayer) pinLayer.refreshClusters();
+    if (S.panel && S.panel.condo) placePin(S.panel.condo);
+    declutter();
+    var b = $('btnBelow'); if (b) { b.setAttribute('aria-pressed', String(on)); b.textContent = '▼ Below recent sales' + (on ? ' · ' + belowCount() : ''); }
+    mChips();
+  }
+  function pmBase(id) {               // what an area is compared with: [label, $psf]
+    var a = S.areas[id], nat = S.meta.uraNational || {}, seg = a && a.ura && a.ura.segment;
+    return S.pm.mode === 'region' ? (seg && nat.segments && nat.segments[seg] ? [seg, nat.segments[seg]] : null) : (nat.psf12 ? ['Singapore', nat.psf12] : null);
+  }
+  function pmPct(id) {
+    var a = S.areas[id], u = a && a.ura, b = pmBase(id);
+    return u && u.psf12 && b ? Math.round(100 * (u.psf12 - b[1]) / b[1]) : null;
+  }
+  function pmFill(p) {
+    if (p == null) return null;
+    var a = Math.abs(p);
+    return { c: a < 3 ? '#a9a8a2' : (p < 0 ? '#46B035' : '#F05A5A'), o: a < 3 ? 0.10 : (a < 10 ? 0.18 : (a < 20 ? 0.34 : 0.52)) };
+  }
+  function pmLine(id) {               // "8% below Singapore" for area cards
+    var p = pmPct(id), b = pmBase(id);
+    return p == null ? '' : (Math.abs(p) < 3 ? 'about the same as ' : Math.abs(p) + '% ' + (p < 0 ? 'below ' : 'above ')) + (S.pm.mode === 'region' ? 'the ' + b[0] : 'Singapore');
+  }
+  var pmLayer;
+  function drawPriceMap() {
+    if (!map || !areaLayer) return;
+    if (!pmLayer) pmLayer = L.layerGroup().addTo(map);
+    pmLayer.clearLayers();
+    $('map').classList.toggle('pricemap', !!S.pm.on);
+    restyle();
+    var card = $('pmCard');
+    if (!S.pm.on) { if (card) card.hidden = true; return; }
+    Object.keys(S.areas).forEach(function (id) {
+      var p = pmPct(id), bb = S.areas[id].layer.getBounds();
+      if (p == null) return;
+      var a = map.latLngToContainerPoint(bb.getNorthWest()), z = map.latLngToContainerPoint(bb.getSouthEast());
+      if (z.x - a.x < 46 || z.y - a.y < 30) return;                // too small to label at this zoom
+      L.marker(bb.getCenter(), { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: null,
+        html: '<span class="pm-lab ' + (p <= -3 ? 'g' : (p >= 3 ? 'r' : 'n')) + '">' + (p > 0 ? '+' : (p < 0 ? '−' : '')) + Math.abs(p) + '%</span>' }) }).addTo(pmLayer);
+    });
+    if (!card) {
+      card = document.createElement('div');
+      card.id = 'pmCard'; card.className = 'pm-card';
+      document.body.appendChild(card);
+    }
+    var nat = S.meta.uraNational || {}, segs = nat.segments || {};
+    var steps = [['#46B035', 0.52], ['#46B035', 0.34], ['#46B035', 0.18], ['#a9a8a2', 0.10], ['#F05A5A', 0.18], ['#F05A5A', 0.34], ['#F05A5A', 0.52]];
+    card.innerHTML = '<div class="pm-t">Price map<button type="button" class="m-x" data-pm="off" aria-label="Turn off the price map">' + mIcon('x') + '</button></div>' +
+      '<div class="pm-s">' + (S.pm.mode === 'region' ? 'Typical $psf vs its own region: ' + ['CCR', 'RCR', 'OCR'].filter(function (k) { return segs[k]; }).map(function (k) { return k + ' ' + full(segs[k]); }).join(' · ')
+        : 'Typical $psf vs all of Singapore (' + full(nat.psf12) + '), URA sales, last 12 months') + '</div>' +
+      '<div class="pm-seg"><button type="button" data-pm="sg" aria-pressed="' + (S.pm.mode !== 'region') + '">vs Singapore</button>' +
+      '<button type="button" data-pm="region" aria-pressed="' + (S.pm.mode === 'region') + '">vs its region</button></div>' +
+      '<div class="pm-scale">' + steps.map(function (x) { return '<i style="background:' + x[0] + ';opacity:' + Math.min(x[1] * 1.6, 0.9) + '"></i>'; }).join('') + '</div>' +
+      '<div class="pm-ticks"><span>20%+ cheaper</span><span>about the same</span><span>20%+ dearer</span></div>';
+    card.hidden = false;
+  }
+  function setPriceMap(change) {
+    if (change === 'toggle') S.pm.on = !S.pm.on;
+    else if (change === 'off') S.pm.on = false;
+    else { S.pm.on = true; S.pm.mode = change; }
+    remember('hqPriceMap', S.pm);
+    var b = $('btnPriceMap'); if (b) b.setAttribute('aria-pressed', String(!!S.pm.on));
+    drawPriceMap();
+    if (M) { mLayers(!$('mLayers').hidden); mChips(); }
+  }
+  document.addEventListener('click', function (e) { var b = e.target.closest('[data-pm]'); if (b) setPriceMap(b.dataset.pm); });
+
+
   // Its own design on phones (M): one floating search bar, a tab bar (Map · Listings · Shortlist · Compare), and
   // Apple Maps-style sheets — a pin opens a small preview card, swipe up for the full condo page, down to close.
   // The laptop layout is untouched; the same data, shortlist and filters are used.
@@ -2318,7 +2446,7 @@
         if (g) g.els.push(el);
       });
     });
-    var TOP = ['Price', 'Quick picks', 'Bedrooms', 'Walk to MRT', 'Expressway noise'];
+    var TOP = ['Price', 'Quick picks', 'Bedrooms', 'Walk to MRT', 'Below recent sales', 'Expressway noise'];
     var main = document.createElement('div'), more = document.createElement('details');
     main.className = 'm-fmain'; more.className = 'm-fmore';
     more.innerHTML = '<summary>More filters<span id="mMoreOn"></span></summary>';
@@ -2340,7 +2468,10 @@
       if (b && b.dataset.m === 'layers') mLayers(layers.hidden);
       if (b && b.dataset.m === 'locate') mLocate();
     });
-    chips.addEventListener('click', function (e) { if (e.target.closest('[data-m=filters]')) mOpenFilters(e); });
+    chips.addEventListener('click', function (e) {
+      if (e.target.closest('[data-m=filters]')) mOpenFilters(e);
+      if (e.target.closest('[data-m=below]')) setBelow(!S.belowOn);
+    });
     layers.addEventListener('click', function (e) {
       var b = e.target.closest('button');
       if (!b) return;
@@ -2414,9 +2545,11 @@
     var warn = $('status') && $('status').classList.contains('warn');
     $('mChips').innerHTML = '<span class="m-chip" title="' + esc($('status') ? $('status').title : '') + '"><i class="m-dot' + (warn ? ' warn' : '') + '"></i>' +
       n(Object.keys(condos).length) + ' condos' + (upd ? ' · ' + upd : '') + '</span>' +
+      '<button type="button" class="m-chip m-below" data-m="below" aria-pressed="' + !!S.belowOn + '">▼ Below recent sales' +
+        (S.belowOn ? ' · ' + belowCount() : '') + '</button>' +
       (tags.length ? '<button type="button" class="m-chip" data-m="filters">' + esc(tags.slice(0, 2).map(function (t) { return t[0]; }).join(' · ')) +
         (tags.length > 2 ? ' +' + (tags.length - 2) : '') + '</button>' : '');
-    var moreOn = tags.filter(function (t) { return ['price', 'beds', 'mrt', 'xway'].indexOf(t[1]) < 0; }).length;
+    var moreOn = tags.filter(function (t) { return ['price', 'beds', 'mrt', 'xway', 'below'].indexOf(t[1]) < 0; }).length;
     if ($('mMoreOn')) $('mMoreOn').textContent = moreOn ? ' · ' + moreOn + ' on' : '';
   }
   function mFilterBtn(count) {
@@ -2489,6 +2622,8 @@
     }
     var w = mWarning(c);
     if (w) facts.push('<span class="m-fact ' + w[1] + '">' + mIcon('alert') + esc(w[0]) + '</span>');
+    var bo = belowOf(c);
+    if (bo) facts.unshift('<span class="m-fact ' + (bo.check ? 'warn' : 'under') + '">' + belowText(bo) + '</span>');
     var cheapest = units[0];
     return '<div class="card-body m-peekbody">' +
       '<div class="m-row"><div><div class="title">' + esc(c.name) + (c.ec ? '<span class="badge">EC</span>' : '') + '</div>' +
@@ -2497,7 +2632,7 @@
       '<div class="m-row m-mid"><div><div class="m-price">' + (groups.length > 1 ? '<small>from</small>' : '') + full(cheapest.price) + '</div>' +
       '<div class="sub">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + ' for sale' + (beds !== '—' ? ' · ' + beds + ' bed' : '') + '</div></div>' +
       mRing(c.score ? c.score.total : null) + '</div>' +
-      (facts.length ? '<div class="m-facts">' + facts.join('') + '</div>' : '') +
+      (facts.length ? '<div class="m-facts">' + facts.join('') + '</div>' : '') + (bo ? '<div class="m-under">' + belowNote(bo) + '</div>' : '') +
       '<div class="m-actions"><button type="button" class="m-btn' + (star ? ' dark' : '') + '" data-action="star" aria-pressed="' + star + '">' +
       (star ? '★' : '☆') + ' Shortlist</button><a class="m-btn" href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">Open listing ' + mIcon('ext') + '</a></div>' +
       '<div class="m-hint">Swipe up for details</div></div>';
@@ -2511,7 +2646,8 @@
       '<div class="m-row m-mid"><div><div class="m-price">' + (u && u.psf12 ? full(u.psf12) : full(s.psf)) + '<small> psf</small></div>' +
       '<div class="sub">' + (u && u.psf12 ? "URA sales, last 12 months" : "typical asking") + '</div></div>' + badge + '</div>' +
       '<div class="m-facts"><span class="m-fact">' + k + ' condo' + (k === 1 ? '' : 's') + ' · ' + s.n + ' for sale</span>' +
-      (a.crowd ? '<span class="m-fact">#' + a.crowd.rank + ' of ' + a.crowd.of + ' busiest</span>' : '') + '</div>' +
+      (a.crowd ? '<span class="m-fact">#' + a.crowd.rank + ' of ' + a.crowd.of + ' busiest</span>' : '') +
+      (pmLine(id) ? '<span class="m-fact ' + (pmPct(id) <= -3 ? 'good' : '') + '">$psf ' + pmLine(id) + '</span>' : '') + '</div>' +
       '<div class="m-actions"><button type="button" class="m-btn dark" data-mfull="condos">Condos (' + k + ')</button>' +
       '<button type="button" class="m-btn" data-mfull="summary">Area details</button></div>' +
       '<div class="m-hint">Swipe up for details</div></div>';
@@ -2552,7 +2688,8 @@
     return src ? '<img src="' + esc(src) + '" alt="" loading="lazy"' + (g && mapThumb(c) ? ' onerror="this.onerror=null;this.src=\'' + esc(mapThumb(c)) + '\'"' : '') + '>' : '<span class="m-noimg"></span>';
   }
   function mTags(c) {
-    var u = shown(c), out = [];
+    var u = shown(c), out = [], bo = belowOf(c);
+    if (bo) out.push(['▼ ' + Math.abs(bo.pct) + '% under URA' + (bo.check ? ' · check' : ''), bo.check ? 'warn' : 'good']);
     if (u.some(function (l) { return daysAgo(l.firstSeen) <= 7; })) out.push(['New', 'good']);
     var drop = Math.min.apply(null, sameUnits(u).map(priceMove).concat([0]));
     if (drop < 0) out.push(['▼ ' + money(-drop), 'good']);
@@ -2574,6 +2711,10 @@
     if (mList.quick === 'new') cs = cs.filter(function (c) { return shown(c).some(function (l) { return daysAgo(l.firstSeen) <= 7; }); });
     if (mList.quick === 'drop') cs = cs.filter(function (c) { return shown(c).some(function (l) { return l.wasPrice && l.price < l.wasPrice; }); });
     if (mList.quick === 'mrt') cs = cs.filter(function (c) { var m = c.near && c.near.mrt; return m && (m.walkMin ? m.walkMin <= 10 : m.m <= CLOSE.mrt); });
+    if (mList.quick === 'below') {
+      cs = cs.filter(function (c) { return belowOf(c); });
+      return cs.sort(function (x, y) { return belowOf(x).pct - belowOf(y).pct; });         // biggest gap first
+    }
     var newest = function (c) { return shown(c).reduce(function (t, l) { return (l.firstSeen || '') > t ? l.firstSeen : t; }, ''); };
     cs.sort(function (x, y) {
       if (mList.sort === 'price') return fromPrice(x) - fromPrice(y);
@@ -2598,7 +2739,7 @@
     return '<header class="m-lt"><div class="m-row"><h1>Listings</h1><button type="button" class="m-round dark" data-m="filters" aria-label="Filters">' + mFilterBtn(tags.length) + '</button></div>' +
       '<div class="m-meta">' + n(Object.keys(condos).length) + ' condos · ' + n(units) + ' units' + (upd ? ' · updated ' + upd : '') + '</div>' +
       '<label class="m-field">' + mIcon('search') + '<input id="mListQ" type="search" placeholder="Search these listings" value="' + esc(mList.q) + '" autocomplete="off"></label>' +
-      '<div class="m-chiprow">' + chip('sort', 'score', 'Best score') + chip('sort', 'price', 'Lowest price') + chip('sort', 'new', 'Newest') +
+      '<div class="m-chiprow">' + chip('quick', 'below', '▼ Below recent sales') + chip('sort', 'score', 'Best score') + chip('sort', 'price', 'Lowest price') + chip('sort', 'new', 'Newest') +
       '<span class="m-sep"></span>' + chip('quick', 'new', 'New this week') + chip('quick', 'drop', 'Price dropped') + chip('quick', 'mrt', 'Near MRT') + '</div></header>' +
       '<div class="m-list" id="mListBody">' + mListItems() + '</div>';
   }
@@ -2729,6 +2870,8 @@
     if (!open) return;
     el.innerHTML = '<div class="m-grab" aria-hidden="true"></div><div class="m-row"><strong>Show on map</strong>' +
       '<button type="button" class="m-x" data-mclose aria-label="Close">' + mIcon('x') + '</button></div>' +
+      '<button type="button" class="m-pmrow" data-pm="toggle" aria-pressed="' + !!S.pm.on + '"><span class="m-pmsw"></span><span><b>Price map</b>' +
+        '<small>Areas shaded cheaper or dearer than Singapore / their region</small></span></button>' +
       '<div class="m-lgrid">' + PLACE_KINDS.map(function (k) {
         return '<button type="button" data-place="' + k[0] + '" aria-pressed="' + !!S.placesOn[k[0]] + '"><span style="--c:' + k[2] + '">' + iconSvg(k[0]) + '</span>' + k[1] + '</button>';
       }).join('') + '</div>' +
@@ -2780,6 +2923,8 @@
     $('btnShortlist').addEventListener('click', function () { setLeft(!$('shortlist').classList.contains('open')); });
     $('hideShortlist').addEventListener('click', function () { setLeft(false); });
     $('btnCompare').addEventListener('click', openCompare);
+    $('btnBelow').addEventListener('click', function () { setBelow(!S.belowOn); });
+    $('btnPriceMap').addEventListener('click', function () { setPriceMap('toggle'); });
     $('compare').addEventListener('click', onCompareClick);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.compare) closeCompare(); });
     $('detail').addEventListener('click', onPanelClick);
@@ -2820,6 +2965,9 @@
       applyFilters();
       updateStatus();
       if (M) mBadge();
+      if (S.pm.on) drawPriceMap();
+      if ($('btnBelow')) { $('btnBelow').setAttribute('aria-pressed', String(!!S.belowOn)); if (S.belowOn) setBelow(true); }
+      if ($('btnPriceMap')) $('btnPriceMap').setAttribute('aria-pressed', String(!!S.pm.on));
     }).catch(function () {
       $('count').textContent = "Couldn't load the listings — is the HomeQuest Terminal window still open?";
     });

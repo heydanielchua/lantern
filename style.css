@@ -792,3 +792,42 @@ html.m #popMore .fshow { width: 100%; height: 54px; font-size: 16.5px; }
   border-radius: 20px; background: var(--accent); color: #fff; font: 500 14px Inter, system-ui, sans-serif; text-align: center; box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.5); }
 .m-toast[hidden] { display: none; }
 html.m .wide-only { display: none; }
+
+/* ---- below recent sales + price map (3 Nov) ---- */
+.pin.below { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #46B035 !important; }
+.pin.below2 { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #2a8f29, 0 0 0 10px rgba(42, 143, 41, 0.25) !important; }
+.pin.bcheck { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #f2a23a !important; }
+.pin { position: relative; }
+.cluster.below { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #46B035; position: relative; }
+.bpct { position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); background: #2a8f29; color: #fff; font: 700 11px/1.5 Inter, system-ui, sans-serif;
+  padding: 0 6px; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); pointer-events: none; }
+.bpct.q { background: #e08a12; }
+.pill.warnpill { background: #fff1e0; color: #b45a00; }
+.m-fact.under { color: #2a8f29; background: #e7f6e6; border-color: #cdeccb; font-weight: 700; }
+.m-under { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.m-under b { color: #2a8f29; }
+.m-chip.m-below[aria-pressed="true"] { background: #2a8f29; color: #fff; border-color: #2a8f29; }
+#btnBelow[aria-pressed="true"] { background: #2a8f29; border-color: #2a8f29; }
+#map.pricemap .area-label { display: none; }
+.pm-lab { display: inline-block; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.92); border-radius: 999px; padding: 1px 7px;
+  font: 700 11px/1.6 Inter, system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
+.pm-lab.g { color: #2a8f29; } .pm-lab.r { color: #c62f22; } .pm-lab.n { color: var(--muted); }
+.pm-card { position: fixed; z-index: 1001; left: 50%; transform: translateX(-50%); top: 72px; width: min(360px, calc(100vw - 16px)); border-radius: 26px; padding: 12px 16px 12px;
+  background: rgba(250, 250, 248, 0.94); border: 1px solid #fff; box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); font-family: Inter, system-ui, sans-serif; }
+.pm-card[hidden] { display: none; }
+.pm-t { font-weight: 700; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+.pm-s { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.pm-seg { display: flex; background: rgba(0, 0, 0, 0.05); border-radius: 20px; padding: 3px; margin-top: 10px; }
+.pm-seg button { flex: 1; height: 34px; border: 0; border-radius: 17px; background: none; font: 600 13.5px Inter, system-ui, sans-serif; color: var(--muted); }
+.pm-seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.25); }
+.pm-scale { display: flex; gap: 3px; margin-top: 12px; } .pm-scale i { flex: 1; height: 10px; border-radius: 3px; }
+.pm-ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+html.m .pm-card { left: 8px; right: 8px; width: auto; transform: none; top: auto; bottom: calc(var(--m-bot) + var(--m-tabh) + 18px); z-index: 1140; }
+html.m.m-full .pm-card, html.m:not(.m-tab-map) .pm-card { display: none; }
+html.m #btnBelow, html.m #btnPriceMap { display: none; }
+.m-pmrow { width: 100%; display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 14px; border-radius: 18px; border: 1px solid var(--line); background: #fff;
+  text-align: left; font: inherit; color: var(--ink); }
+.m-pmrow[aria-pressed="true"] { border: 2px solid var(--accent); }
+.m-pmrow b { display: block; font-size: 15px; } .m-pmrow small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.m-pmsw { flex: none; width: 32px; height: 32px; border-radius: 16px; background: linear-gradient(90deg, #46B035 0 50%, #F05A5A 50% 100%); opacity: 0.75; }

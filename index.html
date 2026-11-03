@@ -77,6 +77,9 @@
         <div class="fchips" data-f="baths"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3+</button></div>
         <h4>Walk to MRT</h4>
         <div class="fchips" data-f="mrt" data-single><button type="button" data-v="5">≤ 5 min</button><button type="button" data-v="10">≤ 10 min</button><button type="button" data-v="15">≤ 15 min</button></div>
+        <h4>Below recent sales <span>asking vs similar units sold</span></h4>
+        <div class="fchips" data-f="below" data-single><button type="button" data-v="5">5%+ below</button><button type="button" data-v="10">10%+ below</button></div>
+        <span class="hint">Compared with URA sales of similar-size units in the same condo, last 2 years (at least 3 sales). Over 25% below: double-check the listing.</span>
         <h4>Renting level <span>URA rentals ÷ units</span></h4>
         <div class="fchips" data-f="rent"><button type="button" data-v="low">Mostly owners</button><button type="button" data-v="mid">Mixed</button><button type="button" data-v="high">Rental-heavy</button></div>
         <span class="hint">Mostly owners = under 8% of units rented out a year · Rental-heavy = 20%+</span>
@@ -95,6 +98,8 @@
     </div>
   </div>
 
+  <button type="button" id="btnBelow" class="btn btn-toggle" aria-pressed="false" title="Ring the condos with a unit asking 5%+ below what similar units there sold for">▼ Below recent sales</button>
+  <button type="button" id="btnPriceMap" class="btn btn-toggle" aria-pressed="false" title="Shade each area cheaper or dearer than Singapore / its region">Price map</button>
   <div class="spacer"></div>
   <span id="count" class="meta">Loading…</span>
   <span id="status" class="meta status"></span>
