@@ -24,9 +24,6 @@
     <label>Password
       <input id="loginPw" type="password" autocomplete="current-password" required>
     </label>
-    <label>GitHub key <span>to save the shortlist · only needed once per device</span>
-      <input id="loginToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
-    </label>
     <label class="login-check"><input id="loginRemember" type="checkbox" checked> Remember me on this device</label>
     <button id="loginGo" type="submit">Open</button>
     <p id="loginErr" class="login-err" role="alert"></p>
@@ -129,6 +126,7 @@
       </div>
     </div>
     <div id="shortItems" class="card-body"></div>
+    <div class="short-sync js-sync" aria-live="polite"></div>
   </aside>
 
   <aside id="detail" class="card card-right" aria-label="Details" aria-hidden="true"></aside>

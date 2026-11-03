@@ -1,8 +1,9 @@
 /* Lantern — the online copy of HomeQuest (GitHub Pages).
    The listings and the shortlist are stored scrambled (AES-GCM, key made from your password with
    PBKDF2). This page unscrambles them in the browser after you log in, then starts the normal app.
-   The shortlist is saved back to GitHub with your GitHub key (a fine-grained token that can only
-   write to this one repository). Nothing here is sent anywhere else. */
+   The shortlist is saved back to GitHub with the GitHub key (a fine-grained token that can only write to this
+   one repository). Since 3 Nov the key comes inside the scrambled data, so the password is all you type on
+   each device. Nothing here is sent anywhere else. */
 (function () {
   'use strict';
   var CFG = null, KEY = null, TOKEN = '';
@@ -72,32 +73,23 @@
         .then(function (list) { shortBase = list; return list; });
     });
   }
+  // Answers like the Mac mini's server (3 Nov): {items, sync: 'ok' | 'readonly' | 'error', note}. The page shows
+  // the sync state on the Shortlist ("✓ Synced" / "⚠ Not saved — Retry") instead of a note that was easy to miss.
   function saveShortlist(items, retry) {
-    if (!TOKEN) { notice('Shortlist not saved — log in with your GitHub key to save it.'); return Promise.resolve(items); }
+    if (!TOKEN) return Promise.resolve({ items: items, sync: 'readonly', note: 'update the online copy from the Mac once (Start HomeQuest)' });
     return seal(items).then(function (bytes) {
       var body = { message: 'Shortlist updated', content: b64(bytes) };
       if (shortSha) body.sha = shortSha;
       return gh('PUT', body);
     }).then(function (r) {
-      if (r.ok) return r.json().then(function (j) { shortSha = j.content.sha; shortBase = items; if (!retry) notice(''); return items; });
+      if (r.ok) return r.json().then(function (j) { shortSha = j.content.sha; shortBase = items; return { items: items, sync: 'ok' }; });
       if ((r.status === 409 || r.status === 422) && !retry) {      // changed elsewhere (e.g. on the Mac): merge with the latest, save again
         var base = shortBase || [];
-        return readShortlist().then(function (theirs) {
-          var merged = mergeLists(items, theirs, base);
-          if (merged.length !== items.length) notice('Merged with changes made on another laptop — refresh to see them.');
-          return saveShortlist(merged, true);
-        });
+        return readShortlist().then(function (theirs) { return saveShortlist(mergeLists(items, theirs, base), true); });
       }
-      if (r.status === 401 || r.status === 403) notice('GitHub refused the key — check it can write to ' + CFG.repo + '.');
-      else notice('Couldn\'t save the shortlist to GitHub (' + r.status + '). Try again in a moment.');
-      return items;
-    }).catch(function () { notice('No internet — the shortlist wasn\'t saved.'); return items; });
-  }
-
-  function notice(text) {
-    var n = $('lanternNote');
-    if (!n) { n = document.createElement('div'); n.id = 'lanternNote'; n.className = 'lantern-note'; document.body.appendChild(n); }
-    n.textContent = text; n.hidden = !text;
+      return { items: items, sync: 'error', note: r.status === 401 || r.status === 403 ? 'GitHub refused the key — it may have expired'
+        : 'GitHub said ' + r.status };
+    }).catch(function () { return { items: items, sync: 'error', note: 'no internet' }; });
   }
 
   // ---- what the app asks for (it would ask the Mac mini's server for these) ---------------------
@@ -108,7 +100,8 @@
     if (path.indexOf('/api/google/place?condo=') === 0) return googlePlace(decodeURIComponent(path.split('=')[1]));
     if (path === '/api/shortlist') {
       if (opts && opts.method === 'POST') return saveShortlist(JSON.parse(opts.body));
-      return readShortlist().catch(function () { notice('Couldn\'t read the shortlist from GitHub.'); return []; });
+      return readShortlist().then(function (items) { return { items: items, sync: TOKEN ? 'ok' : 'readonly' }; })
+        .catch(function (e) { return { items: null, sync: 'error', note: e.message || 'couldn\'t read it' }; });
     }
     return Promise.reject(new Error('not available online'));
   };
@@ -214,24 +207,20 @@
   function unlock(key) {
     KEY = key;
     return dataFile(false).then(open).catch(function () { return dataFile(true).then(open); })     // a bad kept copy: download it again
-      .then(function (d) { DATA = d; });
+      .then(function (d) { DATA = d; TOKEN = d.ghToken || LS.get('lanternToken'); });     // key inside the data (older copies: typed once)
   }
 
   function fail(text) { $('loginErr').textContent = text; $('loginGo').disabled = false; $('loginGo').textContent = 'Open'; }
 
   $('loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
-    var pw = $('loginPw').value, tok = $('loginToken').value.trim(), remember = $('loginRemember').checked;
+    var pw = $('loginPw').value, remember = $('loginRemember').checked;
     if (!pw) return fail('Type your password.');
     $('loginGo').disabled = true; $('loginGo').textContent = 'Opening…'; $('loginErr').textContent = '';
     deriveKey(pw).then(function (key) {
       return unlock(key).then(function () { return key; });
     }).then(function (key) {
-      TOKEN = tok || LS.get('lanternToken');
-      if (remember) {
-        crypto.subtle.exportKey('raw', key).then(function (raw) { LS.set('lanternKey', b64(raw)); });
-        if (tok) LS.set('lanternToken', tok);
-      }
+      if (remember) crypto.subtle.exportKey('raw', key).then(function (raw) { LS.set('lanternKey', b64(raw)); });
       start();
     }).catch(function () { fail('That password didn\'t open it. Check it and try again.'); });
   });
@@ -240,11 +229,10 @@
     CFG = cfg;
     $('loginWhen').textContent = 'Listings from ' + cfg.published;
     var saved = LS.get('lanternKey');
-    if (LS.get('lanternToken')) $('loginToken').placeholder = 'Saved on this laptop';
     if (!saved) { $('loginPw').focus(); return; }
     crypto.subtle.importKey('raw', unb64(saved), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']).then(function (key) {
       return unlock(key);
-    }).then(function () { TOKEN = LS.get('lanternToken'); start(); })
+    }).then(start)
       .catch(function () { LS.del('lanternKey'); $('loginPw').focus(); });     // password changed since: log in again
   }).catch(function () { fail('Couldn\'t load the site settings. Check the internet connection.'); });
 })();

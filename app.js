@@ -122,6 +122,7 @@
       full(b.vs.psf) + ' psf (' + b.vs.n + ' sales, last 2 years).' + (b.count > 1 ? ' ' + b.count + ' units asking 5%+ below.' : '') +
       (b.check ? ' Over 25% below: double-check the listing — it may be a mistake or an unusual unit.' : '');
   }
+  var STALE_DAYS = 10;              // a PropertyGuru listing the robot hasn't seen for this long may be sold (3 Nov: robot nightly again)
   function daysAgo(d) { return d ? (Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5 : Infinity; }
   function visible(l) {
     var f = S.filters, c = S.condos[l.condo];
@@ -1681,7 +1682,7 @@
           : '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Floor plan on ' + esc(l.source) + ' →</a>';
         return '<div class="box unit"><div class="head-row"><strong>' + bedsText(l.beds) + (l.baths ? ' · ' + l.baths + ' bath' : '') + ' · ' +
           (l.size ? l.size.toLocaleString('en-SG') + ' sqft' : '—') + '</strong><span class="price">' + full(l.price) + '</span></div>' +
-          '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' + esc(l.source) + (l.source === 'PropertyGuru' ? ', seen ' + esc(shortDate(l.scrapedOn)) + ' — may be sold (not updated)' : '') +
+          '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' + esc(l.source) + (l.source === 'PropertyGuru' && daysAgo(l.scrapedOn) > STALE_DAYS ? ', seen ' + esc(shortDate(l.scrapedOn)) + ' — may be sold (not updated)' : '') +
             (g.length > 1 ? ' · posted ' + g.length + '×' : '') + '</span>' + (g.length > 1 ? tip('Posted ' + g.length + ' times with the same beds, size and price — most likely the same unit listed by different agents.') : '') + '<span>' + '</span></div>' +
           '<div class="vs">' + chip + priceChip(g) + '</div>' +
           '<div class="hint">' + onMarket(g) + '</div>' +
@@ -1870,18 +1871,79 @@
   function closePhoto() { var b = $('lightbox'); if (b) b.hidden = true; }
 
   // ---- shortlist ------------------------------------------------------------------
+  // One shared list (3 Nov): every change waits for the shared copy on GitHub (merged with changes made elsewhere), the
+  // Shortlist shows the result ("✓ Synced 11:42 pm" / "Saving…" / "⚠ Not synced — Retry"), and the list is read again
+  // when you come back to the page and every 2 minutes — a condo starred on the phone shows on the laptop and the Mac.
+  var SYNC = { state: '', note: '', at: null, read: 0, busy: false, again: false, dirty: false, ready: false };
   function toggleShort(key) {
     var i = S.shortlist.indexOf(key);
     if (i >= 0) { S.shortlist.splice(i, 1); delete S.shortAdded[key]; }
     else { S.shortlist.push(key); S.shortAdded[key] = new Date().toISOString(); }
-    var items = S.shortlist.map(function (k) { return { key: k, added: S.shortAdded[k] || '' }; });
-    api('/api/shortlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(items) })
-      .catch(function () { alert("Couldn't save the shortlist — is the HomeQuest window still open?"); });
+    SYNC.dirty = true;
+    saveShort();
     refreshPin(key);
     if (pinLayer) pinLayer.refreshClusters();
     declutter();
     renderShortlist();
     renderPanel();
+  }
+  function saveShort() {
+    if (SYNC.busy) { SYNC.again = true; return; }          // one save at a time; quick clicks are sent together
+    SYNC.busy = true;
+    SYNC.read = Date.now();                               // a save also brings back the latest list
+    setSync('saving');
+    var items = S.shortlist.map(function (k) { return { key: k, added: S.shortAdded[k] || '' }; });
+    api('/api/shortlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(items) })
+      .then(function (r) { if (!SYNC.again) { gotShort(r); if (SYNC.state !== 'error') SYNC.dirty = false; } })
+      .catch(function () { setSync('error', 'the HomeQuest window on the Mac seems to be closed'); })
+      .then(syncDone);
+  }
+  function readShort() {
+    if (!SYNC.ready || SYNC.busy || document.hidden) return;
+    if (SYNC.dirty) return saveShort();                    // a change that didn't save: send it again (merged with the latest)
+    SYNC.busy = true;
+    SYNC.read = Date.now();
+    api('/api/shortlist').then(function (r) { if (!SYNC.again) gotShort(r); })
+      .catch(function () { setSync('error', "couldn't read the shared shortlist"); })
+      .then(syncDone);
+  }
+  function syncDone() { SYNC.busy = false; if (SYNC.again) { SYNC.again = false; saveShort(); } }
+  // The Mac and the online copy answer {items, sync: 'ok' | 'local' | 'readonly' | 'error', note} (an older Mac: just the list)
+  function gotShort(r, quiet) {
+    var items = Array.isArray(r) ? r : r && r.items;
+    if (items) adoptShort(items, quiet);
+    setSync(Array.isArray(r) ? 'ok' : (r && r.sync) || 'error', r && r.note);
+  }
+  function adoptShort(items, quiet) {
+    var alias = S.meta.aliases || {}, list = [], added = {};      // a condo once named by its address now has its real name
+    items.forEach(function (i) {
+      var k = alias[i.key] || i.key;
+      if (list.indexOf(k) < 0) { list.push(k); added[k] = i.added; }
+    });
+    var before = S.shortlist, changed = list.length !== before.length || list.some(function (k) { return before.indexOf(k) < 0; });
+    S.shortAdded = added;
+    if (!changed) return;
+    S.shortlist = list;
+    if (quiet) return;
+    before.concat(list).forEach(function (k) { if (markers[k]) markers[k].setIcon(pinIcon(k)); });
+    if (pinLayer) pinLayer.refreshClusters();
+    declutter();
+    renderShortlist();
+    renderPanel();
+  }
+  function setSync(state, note) {
+    SYNC.state = state; SYNC.note = note || '';
+    if (state === 'ok' || state === 'local') SYNC.at = new Date();
+    document.querySelectorAll('.js-sync').forEach(function (el) { el.innerHTML = syncHtml(); el.title = SYNC.note; });
+  }
+  function syncHtml() {
+    var t = SYNC.at ? SYNC.at.toLocaleTimeString('en-SG', { hour: 'numeric', minute: '2-digit' }) : '';
+    if (SYNC.state === 'saving') return '<span class="sync-busy">Saving…</span>';
+    if (SYNC.state === 'ok') return '<span class="sync-ok">✓ Synced' + (t ? ' · ' + t : '') + '</span>';
+    if (SYNC.state === 'local') return 'Saved on this Mac';
+    if (SYNC.state === 'readonly') return '<span class="sync-warn">⚠ Can\'t save here yet — update the online copy from the Mac</span>';
+    if (SYNC.state === 'error') return '<span class="sync-warn">⚠ Not synced</span> <button type="button" class="link-btn" data-sync-retry>Retry</button>';
+    return '';
   }
 
   // A shortlisted condo is never hidden (3 Nov): one with no listings at all any more (e.g. a source switched off) stays greyed
@@ -2231,6 +2293,19 @@
     if (r.ok !== false && r.downloaded) lines.push('URA rentals: downloaded ' + day(r.downloaded));
     var rs = S.meta.rushStatus;
     if (rs && rs.ok === false) lines.push('Rush-hour drive times (Google): ' + rs.message);
+    // the robots' last runs (3 Nov: the 1am robot — 99.co + PropertyGuru); a stopped one shows as a warning
+    var rb = S.meta.robot || {}, ROBOTS = [['99co', '99.co'], ['propertyguru', 'PropertyGuru']];
+    function at(w) { return w ? day(w) + ', ' + new Date(w).toLocaleTimeString('en-SG', { hour: 'numeric', minute: '2-digit' }) : '—'; }
+    ROBOTS.forEach(function (r) {
+      var x = rb[r[0]];
+      if (!x) return;
+      var what = x.result === 'paused' ? 'paused for today (' + (x.note || '') + '), carries on next time' :
+        '✓ ' + (x.mode === 'full' ? 'full run done' : n(x.new || 0) + ' new listing' + (x.new === 1 ? '' : 's'));
+      if (x.result === 'stopped') problems.push([r[1] + ' robot stopped', r[1] + ' robot stopped on ' + at(x.when) + ': ' + (x.note || '')]);
+      else lines.push('Robot · ' + r[1] + ', ' + at(x.when) + ': ' + what);
+    });
+    var nr = rb.nightly;
+    if (nr && nr.night && daysAgo(String(nr.started).slice(0, 10)) > 2) problems.push(['1am robot didn\'t run', 'The 1am robot last ran on ' + at(nr.started) + ' — is the Mac on and logged in?']);
     el.innerHTML = '<i class="dot" aria-hidden="true"></i>' + esc(problems.length ? problems[0][0] + (problems.length > 1 ? ' +' + (problems.length - 1) : '') : 'Data up to date');
     el.title = problems.map(function (x) { return '⚠ ' + x[1]; }).concat(lines).join('\n');
     el.classList.toggle('warn', problems.length > 0);
@@ -2553,7 +2628,7 @@
     S.listings.forEach(function (l) { if (visible(l)) condos[l.condo] = 1; });
     var upd = S.meta.updated ? new Date(S.meta.updated + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : '';
     var warn = $('status') && $('status').classList.contains('warn');
-    $('mChips').innerHTML = '<span class="m-chip" title="' + esc($('status') ? $('status').title : '') + '"><i class="m-dot' + (warn ? ' warn' : '') + '"></i>' +
+    $('mChips').innerHTML = '<span class="m-chip" data-tip="' + esc($('status') ? $('status').title : '') + '"><i class="m-dot' + (warn ? ' warn' : '') + '"></i>' +
       n(Object.keys(condos).length) + ' condos' + (upd ? ' · ' + upd : '') + '</span>' +
       '<button type="button" class="m-chip m-below" data-m="below" aria-pressed="' + !!S.belowOn + '">▼ Below recent sales' +
         (S.belowOn ? ' · ' + belowCount() : '') + '</button>' +
@@ -2780,7 +2855,7 @@
     }).join('');
     var total = all.length + gone.length + lost.length;
     return '<header class="m-lt"><h1>Shortlist</h1><div class="m-meta">' + total + ' condo' + (total === 1 ? '' : 's') +
-      ' · shared with your laptop and Mac</div>' +
+      ' · <span class="js-sync" title="' + esc(SYNC.note) + '">' + syncHtml() + '</span></div>' +
       (all.length > 1 ? '<div class="m-chiprow">' + chip('added', 'Newest added') + chip('score', 'Best score') + chip('price', 'Price') + '</div>' : '') + '</header>' +
       '<div class="m-list">' + (rows || '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo and tap ☆ Shortlist.</div>') + '</div>' +
       (all.length > 1 ? '<div class="m-hint">Tick condos to compare · swipe left to remove</div>' : '') +
@@ -2950,6 +3025,13 @@
     $('detail').addEventListener('change', function (e) {
       if (e.target.id === 'areaSort' && S.panel) { S.panel.sort = e.target.value; $('areaList').innerHTML = areaCondoList(S.panel.area); }
     });
+    // the shared shortlist: read again when you come back to the page (at most every 15 s) and every 2 minutes
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - SYNC.read > 15000) readShort(); });
+    window.addEventListener('focus', function () { if (Date.now() - SYNC.read > 15000) readShort(); });
+    setInterval(readShort, 120000);
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-sync-retry]')) { if (SYNC.dirty) saveShort(); else readShort(); }
+    });
     $('shortItems').addEventListener('click', function (e) {
       var u = e.target.closest('button[data-unstar]');
       if (u) return toggleShort(u.dataset.unstar);           // a condo with nothing for sale any more
@@ -2967,11 +3049,9 @@
         if ((l.scrapedOn || '') > g.seen) g.seen = l.scrapedOn || '';
       });
       S.meta = r[0].meta; S.ura = r[0].ura || {}; S.rent = r[0].rent || {}; S.mcst = r[0].mcst || {}; S.nearby = r[0].nearby || {}; S.places = r[0].places || {};
-      var alias = S.meta.aliases || {};          // a condo once named by its address now has its real name
-      (r[2] || []).forEach(function (i) {
-        var k = alias[i.key] || i.key;
-        if (S.shortlist.indexOf(k) < 0) { S.shortlist.push(k); S.shortAdded[k] = i.added; }
-      });
+      gotShort(r[2], true);
+      SYNC.ready = true;
+      SYNC.read = Date.now();
       if (!S.shortlist.length || phone()) setLeft(false);        // nothing shortlisted yet: just the ★ button
       buildCondos();
       drawAreas(r[1]);
