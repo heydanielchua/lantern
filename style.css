@@ -26,7 +26,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; background: radial-gradient(1200px 700px at 70% 10%, #ffffff 0%, #eeeeec 55%, #e4e4e2 100%); }
+html, body { height: 100%; margin: 0; background: radial-gradient(1200px 700px at 70% 10%, #ffffff 0%, #eeeeec 55%, #e4e4e2 100%);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }   /* macOS renders text heavier than drawn */
 body { display: flex; flex-direction: column; font-size: 14px; }
 a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -551,6 +552,46 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .list-item.gone { opacity: 0.6; cursor: default; }
 .list-item.gone .srow { align-items: center; }
 .list-item.gone .link-btn { margin-left: auto; font-size: 12px; }
+/* Typography (5 Nov, from the better-typography skill).
+   1: prices and counts change as the map filters, and proportional digits make them jitter sideways.
+   2: condo names are long; balance stops a two-line name leaving one word stranded. */
+.price, .big-num, .stat strong, .unit .price, .m-pr, .pill, .chip, .hero .lab, .tag, .bpct,
+#count, #shortCount, .m-meta, .cmptable td, .m-fact b, td, th {
+  font-variant-numeric: tabular-nums;
+}
+.title, .m-nm, .list-item strong, .m-lt h1, .card-head .eyebrow { text-wrap: balance; }
+.sub, .hint, .m-ar, .m-empty, .empty, .why, .short-sync { text-wrap: pretty; }
+
+/* Apple's fluid-interface rules (5 Nov, from the apple-design skill) — 1: answer the finger at once.
+   Every tappable thing dips on press, not on release, so nothing feels dead while it works. */
+.btn, .icon-btn, .link-btn, .list-item, .chip, .pill, .m-btn, .m-chip, .m-chip2, .m-item,
+#mTabs button, .dock button, .seg button, .tip-i {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 110ms cubic-bezier(.2, .8, .2, 1), background-color 140ms ease, opacity 140ms ease;
+}
+.btn:active, .icon-btn:active, .link-btn:active, .chip:active, .pill:active,
+.m-btn:active, .m-chip:active, .m-chip2:active, #mTabs button:active, .dock button:active, .seg button:active {
+  transform: scale(0.96);
+}
+.list-item:active, .m-item:active { transform: scale(0.985); }     /* big rows dip less, or it looks rubbery */
+.tip-i:active { transform: scale(0.9); }
+
+/* 14: follow the phone's accessibility settings. Reduce Motion still gives feedback — just no sliding. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .12s !important; scroll-behavior: auto !important; }
+  html.m #detail.card, html.m #popMore { transition: opacity .16s ease !important; }
+  .btn:active, .icon-btn:active, .m-btn:active, #mTabs button:active { transform: none; opacity: .62; }
+}
+@media (prefers-reduced-transparency: reduce) {    /* frosted glass goes solid */
+  .card, .topnav, #mTabs, #mChips .m-chip, .m-side button, html.m #detail.card, html.m #popMore, #pmCard {
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: #f7f7f5 !important; }
+}
+@media (prefers-contrast: more) {
+  .card, #mTabs, html.m #detail.card { background: #fff !important; border: 1px solid var(--ink) !important; }
+  .hint, .meta, small, .m-ar { color: #55544f !important; }
+}
+
 /* shortlist sync line (3 Nov): "✓ Synced · 11:42 pm" / "Saving…" / "⚠ Not synced — Retry" */
 .short-sync { padding: 2px 16px 12px; font-size: 11.5px; color: var(--muted); }
 .short-sync:empty { display: none; }
@@ -660,7 +701,7 @@ html.m #detail .rows > div { font-size: 14.5px; }
 html.m #detail .dock { padding: 10px 14px calc(var(--m-bot) + 12px); gap: 8px; background: rgba(250, 250, 248, 0.92); border-top: 1px solid var(--line); }
 html.m #detail .dock a, html.m #detail .dock button { flex: 1 1 auto; justify-content: center; min-height: 50px; font-size: 15px; padding: 0 12px; }
 html.m #detail .dock button { flex: 1.3 1 auto; }
-html.m .tip-i { width: 20px; height: 20px; line-height: 20px; font-size: 12px; }
+html.m .tip-i { width: 20px; height: 20px; font-size: 12px; }   /* centred by the flex rule, not a px line-height */
 html.m .tooltip { max-width: calc(100vw - 32px); font-size: 14px; }
 .m-onmap { position: absolute; top: 14px; left: 16px; z-index: 2; height: 34px; border-radius: 17px; border: 1px solid var(--line); background: #fff; display: inline-flex;
   align-items: center; gap: 5px; padding: 0 12px 0 9px; font: 600 13px Inter, system-ui, sans-serif; color: var(--ink); }

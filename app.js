@@ -2738,30 +2738,50 @@
       '<div class="m-hint">Swipe up for details</div></div>';
   }
   // Drag the sheet: up = full page, down = smaller / close (Apple Maps style)
+  // How far a flick would carry if you let it coast — Apple's projection from Designing Fluid Interfaces.
+  // A quick flick should decide the sheet even when the finger barely moved.
+  // 0.99 (not the 0.998 used for scrolling) — a sheet should answer a flick without a gentle drag running away.
+  function project(v, decel) { decel = decel || 0.99; return (v / 1000) * decel / (1 - decel); }
+  // Past a limit the sheet follows less and less, instead of stopping dead (rubber-banding).
+  function rubber(over, dim, k) { k = k || 0.55; return (over * dim * k) / (dim + k * Math.abs(over)); }
+
   function mDrag() {
-    var el = $('detail'), y0 = null, dy = 0, head = false;
+    var el = $('detail'), y0 = null, dy = 0, head = false, hist = [];
+    function speed() {                       // px per second, from the last ~100 ms of movement
+      if (hist.length < 2) return 0;
+      var last = hist[hist.length - 1], first = hist[0];
+      for (var i = hist.length - 1; i >= 0; i--) { if (last.t - hist[i].t > 100) break; first = hist[i]; }
+      var ms = last.t - first.t;
+      return ms > 8 ? (last.y - first.y) / ms * 1000 : 0;
+    }
     el.addEventListener('touchstart', function (e) {
       if (!S.panel || e.target.closest('input, select, textarea, .gphotos, .cmptable')) return;
       var body = el.querySelector('.card-body'), full = el.classList.contains('m-full');
       head = !!e.target.closest('.m-grab, .card-head');
       if (full && !head && !(body && body.scrollTop <= 0)) return;
-      y0 = e.touches[0].clientY; dy = 0;
+      y0 = e.touches[0].clientY; dy = 0; hist = [{ y: y0, t: e.timeStamp }];
     }, { passive: true });
     el.addEventListener('touchmove', function (e) {
       if (y0 == null) return;
-      dy = e.touches[0].clientY - y0;
+      var y = e.touches[0].clientY;
+      dy = y - y0;
+      hist.push({ y: y, t: e.timeStamp });
+      if (hist.length > 8) hist.shift();
       var full = el.classList.contains('m-full');
-      if (full && (dy < 0 || (!head && el.querySelector('.card-body').scrollTop > 0))) { y0 = null; el.style.transform = ''; return; }
+      if (full && (dy < -6 || (!head && el.querySelector('.card-body').scrollTop > 0))) { y0 = null; el.style.transform = ''; return; }
+      var h = el.getBoundingClientRect().height || 400, shown = dy;
+      if (full && dy < 0) shown = rubber(dy, h);                        // already as far up as it goes
+      else if (!full && dy < -40) shown = -40 + rubber(dy + 40, h);     // peek pulled above its stop
       el.style.transition = 'none';
-      el.style.transform = 'translateY(' + Math.max(dy, full ? 0 : -40) + 'px)';
+      el.style.transform = 'translateY(' + shown + 'px)';
     }, { passive: true });
     function end() {
       if (y0 == null) return;
       y0 = null; el.style.transition = ''; el.style.transform = '';
-      var full = el.classList.contains('m-full');
-      if (!full && dy < -40) mSetMode('full');
-      else if (!full && dy > 70) closePanel();
-      else if (full && dy > 90) { if (mTab === 'map') mSetMode('peek'); else closePanel(); }
+      var full = el.classList.contains('m-full'), went = dy + project(speed());
+      if (!full && went < -40) mSetMode('full');
+      else if (!full && went > 70) closePanel();
+      else if (full && went > 90) { if (mTab === 'map') mSetMode('peek'); else closePanel(); }
     }
     el.addEventListener('touchend', end);
     el.addEventListener('touchcancel', end);
