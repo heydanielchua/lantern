@@ -865,12 +865,14 @@
       "newproj": "<rect x=\"2\" y=\"6\" width=\"20\" height=\"8\" rx=\"1\" /> <path d=\"M17 14v7\" /> <path d=\"M7 14v7\" /> <path d=\"M17 3v3\" /> <path d=\"M7 3v3\" /> <path d=\"M10 14 2.3 6.3\" /> <path d=\"m14 6 7.7 7.7\" /> <path d=\"m8 6 8 8\" />"
   };
   ICON.futuremrt = ICON.mrt;
+  ICON.gls = "<path d=\"M3 20h18\" /> <path d=\"M7 20V8l9-3v6\" /> <path d=\"M7 12h9\" /> <path d=\"M19 20v-8\" /> <path d=\"M19 12l3-1.5L19 9\" />";
   ICON.xway = "<path d=\"m21 8-2 2-1.5-3.7A2 2 0 0 0 15.646 5H8.4a2 2 0 0 0-1.903 1.257L5 10 3 8\" /> <path d=\"M7 14h.01\" /> <path d=\"M17 14h.01\" /> <rect width=\"18\" height=\"8\" x=\"3\" y=\"10\" rx=\"2\" /> <path d=\"M5 18v2\" /> <path d=\"M19 18v2\" />";
   // icon style B (agreed 25 Oct): solid colour circle, white icon + edge, all the same size; MRT = one MRT-sign red, worship = warm brown
   var PLACE_KINDS = [
     ['mrt', 'MRT exits', '#D42E12'], ['futuremrt', 'Future MRT', '#D42E12'], ['shop', 'Supermarkets', '#4C7458'], ['hawker', 'Hawkers', '#8E6CC2'],
     ['park', 'Parks', '#46B035'], ['dog', 'Dog runs', '#46B035'], ['worship', 'Places of worship', '#A47551'], ['dorm', 'Worker dormitories', '#E07A7A'],
     ['newproj', 'New projects', '#3B6FB6'],     // 27 Oct: future MRT = dashed white circle; new homes being built = blue
+    ['gls', 'Land for sale', '#9A6FB6'],        // 6 Nov: empty government land that could become condos
     ['xway', 'Expressways', '#5B5B59']          // 29 Oct: lines, not icons
   ];
   function iconSvg(kind) {
@@ -924,6 +926,7 @@
         var label = k[0] === 'mrt' ? p[2] + (p[3] ? ' · exit ' + p[3] : '') : (k[0] === 'park' && p[3] ? p[2] + ' · ' + p[3] + ' ha' : (k[0] === 'worship' ? p[2] + (planned ? ' · planned (Master Plan 2025)' : (p[3] && p[3] !== p[2] ? ' · ' + p[3] : '')) : p[2]));
         if (k[0] === 'newproj') label = p[2] + ' · ' + n(p[3]) + ' units' + (p[4] ? ' · ready ' + p[4] : '') + (p[5] ? ' · spot approximate' : '');
         if (k[0] === 'futuremrt') label = p[2] + ' · ' + p[3] + (p[5] ? ' (new line)' : '') + ' · opens ' + p[4] + (p[6] ? ' · spot approximate' : '');
+        if (k[0] === 'gls') label = glsLabel(p) + ' · spot approximate';
         if (c) label += ' · ' + metres(Math.round(metresBetween(c.lat, c.lng, p[0], p[1])));
         if (k[0] === 'park' && p[4]) {
           L.polygon(p[4], { color: '#46B035', weight: 1.5, opacity: 0.9, fillColor: '#46B035', fillOpacity: 0.14, interactive: false }).addTo(placeLayer);
@@ -955,9 +958,23 @@
   }
   function unitsOf(list) { return list.reduce(function (t, x) { return t + ((x.p || x)[3] || 0); }, 0); }
   var PIPE_TIP = 'URA\'s list of private homes being built (latest quarter), condos and apartments only. "Ready" = URA\'s expected completion year, where given.';
+  // Government land sales (6 Nov): empty land the government is selling for housing. [lat, lng, name, units, list, status, note]
+  var GLS_TIP = 'Land the government is selling for housing (URA Government Land Sales). "Going to tender" sites will be built; '
+    + '"only if a developer asks" sites are on the Reserve List and are often never sold. Spots are the middle of the street, not the exact plot. '
+    + 'Typed out from URA\'s releases on 6 Nov 2026 — worth checking against URA before relying on it.';
+  function glsLabel(p) {
+    return esc(p[2]) + (p[3] ? ' · about ' + n(p[3]) + ' homes' : '') + ' · ' + glsState(p) + ' · ' + esc(p[5]);
+  }
+  var LISTS = { confirmed: 'going to tender', reserve: 'only if a developer asks' };
+  // Where a plot has got to: one already sold will be built, a Reserve List one may never be sold at all
+  function glsState(p) {
+    var st = p[5] || '';
+    return /awarded|sold/i.test(st) ? 'already sold' : (/closed/i.test(st) ? 'bidding closed' : (LISTS[p[4]] || ''));
+  }
   var RAIL_TIP = 'Stations announced by LTA that aren\'t open yet; spots from URA\'s Master Plan, or from news reports where URA doesn\'t have them yet ("spot approximate"). Opening years as announced (checked Oct 2026) — they can change.';
   function comingBlock(id) {
     var np = comingIn(id, 'newproj').sort(function (x, y) { return y[3] - x[3]; }), fm = comingIn(id, 'futuremrt');
+    var gl = comingIn(id, 'gls').sort(function (x, y) { return (x[4] === y[4] ? y[3] - x[3] : (x[4] === 'confirmed' ? -1 : 1)); });
     return '<div class="box"><span class="eyebrow">New projects coming' + tip(PIPE_TIP) + '</span>' +
       (np.length ? '<div class="rows">' + np.map(function (p) {
         return '<div><span>' + esc(p[2]) + '</span><span><strong>' + n(p[3]) + ' units</strong>' + (p[4] ? ' · ready ' + p[4] : '') +
@@ -967,7 +984,12 @@
       (fm.length ? '<div class="rows">' + fm.map(function (p) {
         return '<div><span>' + esc(p[2]) + '</span><span><strong>' + esc(p[3]) + '</strong>' + (p[5] ? ' (new line)' : '') + ' · ' + esc(p[4]) +
           (p[6] ? '<br><small class="hint">spot approximate</small>' : '') + '</span></div>';
-      }).join('') + '</div>' : '<span class="empty">No new stations announced in this area.</span>') + '</div>';
+      }).join('') + '</div>' : '<span class="empty">No new stations announced in this area.</span>') + '</div>' +
+      '<div class="box"><span class="eyebrow">Land being sold' + tip(GLS_TIP) + '</span>' +
+      (gl.length ? '<div class="rows">' + gl.map(function (p) {
+        return '<div><span>' + esc(p[2]) + '</span><span><strong>' + (p[3] ? 'about ' + n(p[3]) + ' homes' : esc(glsState(p))) + '</strong>' +
+          (p[3] ? ' · ' + esc(glsState(p)) : '') + '<br><small class="hint">' + esc(p[5]) + (p[6] ? ' · ' + esc(p[6]) : '') + '</small></span></div>';
+      }).join('') + '</div>' : '<span class="empty">No government land for sale in this area.</span>') + '</div>';
   }
   // Rush-hour drive (Google, 27 Oct) — Google's rules: not shown once it's more than 30 days old
   function rushOf(nb) { return nb && nb.rush && daysAgo(nb.rush.on) <= 30 ? nb.rush : null; }
@@ -1069,6 +1091,14 @@
     rows.push('<div><span>New condos coming</span><span>' + (np.length ? '<strong>' + np.length + ' project' + (np.length === 1 ? '' : 's') + '</strong> · ' +
       n(unitsOf(np)) + ' units' : soon('none in URA\'s list')) + '</span></div>');
     if (fm.length) rows.push('<div><span>Future MRT</span><span>' + fm.map(function (p) { return '<strong>' + esc(p[2]) + '</strong> (' + esc(p[4]) + ')'; }).join(', ') + '</span></div>');
+    var gl = comingIn(a.id, 'gls');        // empty government land in this area (6 Nov)
+    if (gl.length) {
+      var sure = gl.filter(function (p) { return p[4] === 'confirmed'; }), may = gl.length - sure.length;
+      var homes = gl.reduce(function (t, p) { return t + (p[3] || 0); }, 0);
+      rows.push('<div><span>Land being sold' + tip(GLS_TIP) + '</span><span><strong>' + gl.length + ' site' + (gl.length === 1 ? '' : 's') +
+        '</strong>' + (homes ? ' · about ' + n(homes) + ' homes' : '') +
+        (may ? ' <small class="hint">(' + may + ' only if a developer asks)</small>' : '') + '</span></div>');
+    }
     return '<div class="box"><div class="head-row"><span class="eyebrow">Future growth' +
       tip('Prices = typical URA $psf, first vs last full year (Growing = 3% a year or more). Condo homes = households living in condos (Census 2010 → 2020). New condos = URA\'s list of private homes being built. Future MRT = stations announced by LTA.') + '</span>' +
       '<button type="button" class="link-btn" data-tab="growth">Growth tab →</button></div><div class="rows">' + rows.join('') + '</div></div>';
@@ -1431,6 +1461,13 @@
     var fm = comingNear(c, 'futuremrt', 1000)[0], np = comingNear(c, 'newproj', 1000);
     if (fm) lines.push('<strong>New MRT coming:</strong> ' + esc(fm.p[2]) + ' (' + esc(fm.p[3]) + ', ' + esc(fm.p[4]) + '), ' + metres(fm.m) + ' away.');
     if (unitsOf(np) >= 500) lines.push('<strong>' + n(unitsOf(np)) + ' new homes</strong> being built within 1 km — more competition when renting out or selling.');
+    var gl = comingNear(c, 'gls', 1200);
+    if (gl.length) {
+      var g = gl[0].p, st = glsState(g);
+      lines.push('<strong>Empty land ' + metres(gl[0].m) + ' away</strong> — ' + esc(g[2]) + ', ' +
+        (st === 'already sold' ? 'already sold for housing' : (g[4] === 'confirmed' ? 'being sold for housing' : 'may be sold for housing')) +
+        (g[3] ? ' (about ' + n(g[3]) + ' homes)' : '') + '.' + tip(GLS_TIP));
+    }
     var r = c.rent, cut = monthsAgo(12);
     if (r && r.rentals.length && c.mcst && c.mcst.units) {
       var p = share(r.rentals.filter(function (x) { return x.month > cut; }).length, c.mcst.units);
@@ -1470,7 +1507,7 @@
       row('Hawker', hw[0] ? esc(hw[0].name) + ' · <strong>' + metres(hw[0].m) + '</strong>' : soon('none found'), hw[1] ? esc(hw[1].name) + ' ' + metres(hw[1].m) : '') +
       schools + row('Park', park, big) +
       row('Supermarket', nb.supermarket ? esc(nb.supermarket.name) + ' · <strong>' + metres(nb.supermarket.m) + '</strong>' : soon('none found'), nb.supermarket ? esc(nb.supermarket.street) : '') +
-      workerRows(nb, row) + building +
+      workerRows(nb, row) + building + glsRow(c, row) +
       row('Drive to VivoCity', nb.drive ? '<strong>' + nb.drive.min + ' min</strong> · ' + nb.drive.km + ' km' +
         tip('OneMap driving route to VivoCity\'s main entrance, in normal traffic. Rush hour = Google\'s traffic prediction for an ordinary weekday: to VivoCity leaving 8:30am, home leaving 6pm (refreshed every 30 days).') :
         soon(S.meta.onemapLogin ? 'not available' : 'needs the OneMap login'),
@@ -1479,6 +1516,16 @@
       '</div></div>';
   }
 
+  // Empty government land within 1.2 km (6 Nov): a plot that could become a new condo next door
+  function glsRow(c, row) {
+    var gl = comingNear(c, 'gls', 1200);
+    return row('Land for sale' + tip(GLS_TIP),
+      gl.length ? esc(gl[0].p[2]) + ' · <strong>' + metres(gl[0].m) + '</strong>' : '<span class="ok-text">none within 1.2 km</span>',
+      gl.slice(0, 3).map(function (x, i) {
+        return (i ? esc(x.p[2]) + ' ' + metres(x.m) + ' · ' : '') + glsState(x.p) +
+          (x.p[3] ? ' · about ' + n(x.p[3]) + ' homes' : '') + ' · ' + esc(x.p[5]);
+      }).join('<br>') + (gl.length ? '<br>spot approximate' : ''));
+  }
   // Worker dormitories / weekend gathering spots: information only, highlighted when close (asked 24 Oct)
   var WORKERS_CLOSE = 1000, WORKERS_VERY = 500;          // metres
   function nearTag(m) {
