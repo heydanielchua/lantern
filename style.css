@@ -166,6 +166,8 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .list-item:hover { background: #fff; }
 .list-item.on { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .list-item small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.list-item small.fx { color: var(--ink); font-variant-numeric: tabular-nums; }
+.list-item .price small.psf { color: var(--muted); font-variant-numeric: tabular-nums; }
 .list-item .price { font-family: var(--serif); font-size: 20px; font-weight: 400; white-space: nowrap; text-align: right; }
 .list-item .price small { font-family: "Inter", system-ui, sans-serif; font-size: 11px; }
 .star-mark { color: var(--star); }
@@ -584,7 +586,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
   .btn:active, .icon-btn:active, .m-btn:active, #mTabs button:active { transform: none; opacity: .62; }
 }
 @media (prefers-reduced-transparency: reduce) {    /* frosted glass goes solid */
-  .card, .topnav, #mTabs, #mChips .m-chip, .m-side button, html.m #detail.card, html.m #popMore, #pmCard {
+  .card, .topnav, #mTabs, #mChips .m-chip, .m-side button, html.m #detail.card, html.m #popMore, #pmCard, .m-lt {
     backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: #f7f7f5 !important; }
 }
 @media (prefers-contrast: more) {
@@ -734,8 +736,20 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 
 /* pages: Listings · Shortlist · Compare */
 .m-page { position: fixed; z-index: 1000; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-  background: #f4f4f2; padding: calc(var(--m-top) + 8px) 16px calc(var(--m-bot) + var(--m-tabh) + 40px); }
+  background: #f4f4f2; padding: 0 16px calc(var(--m-bot) + var(--m-tabh) + 40px); }
 .m-page[hidden] { display: none; }
+/* content fades out where it meets the floating tab bar, instead of being cut off mid-row (7 Nov) */
+.m-page::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; z-index: 1; pointer-events: none;
+  height: calc(var(--m-bot) + var(--m-tabh) + 26px);
+  background: linear-gradient(to top, #f4f4f2 42%, rgba(244, 244, 242, 0)); }
+/* iOS large title: full size at rest, shrunk to a frosted bar once the list scrolls under it (7 Nov) */
+.m-lt { position: sticky; top: 0; z-index: 3; margin: 0 -16px; padding: calc(var(--m-top) + 8px) 16px 2px;
+  background: rgba(244, 244, 242, 0.82); backdrop-filter: blur(18px) saturate(170%); -webkit-backdrop-filter: blur(18px) saturate(170%); }
+.m-lt h1 { transition: font-size 220ms cubic-bezier(.32, .72, 0, 1); }
+.m-lt.shrunk { padding-bottom: 8px; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06); }
+.m-lt.shrunk h1 { font-size: 21px; margin-top: 0; }
+.m-lt.shrunk .m-meta, .m-lt.shrunk .m-field { display: none; }
+.m-lt.shrunk .m-round { margin-top: 0; }
 .m-lt h1 { font-family: var(--serif); font-weight: 400; font-size: 38px; margin: 6px 0 0; letter-spacing: -0.3px; }
 .m-meta { color: var(--muted); font-size: 14px; margin-top: 2px; }
 .m-round { width: 44px; height: 44px; border-radius: 22px; border: 0; display: grid; place-items: center; position: relative; margin-top: 10px; padding: 0; }
@@ -750,12 +764,20 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-chip2[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .m-sep { flex: none; width: 1px; background: var(--line); margin: 6px 2px; }
 .m-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.m-group { background: #fff; border-radius: 22px; overflow: hidden; box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.4); }
+.m-group .m-item, .m-group .m-swipe { border-radius: 0; box-shadow: none; }
+.m-group > * + * { border-top: 1px solid var(--line); }
+.m-ghead { font: 600 11px Inter, system-ui, sans-serif; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--muted); margin: 6px 0 -4px 4px; }
 .m-item { width: 100%; display: flex; gap: 12px; align-items: center; text-align: left; background: #fff; border: 0; border-radius: 22px; padding: 10px 14px 10px 10px;
   box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.4); font: inherit; color: var(--ink); position: relative; transition: transform 200ms ease; }
 .m-item img, .m-noimg { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; flex: none; background: #ecebe8; }
 .m-item .m-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; margin: 0; align-items: stretch; }
 .m-nm { font-family: var(--serif); font-size: 20px; line-height: 1.12; }
 .m-ar { color: var(--muted); font-size: 13px; margin-top: 3px; }
+/* beds / size / psf of the unit whose price is shown — the numbers you compare on (7 Nov) */
+.m-fx { color: var(--ink); font-size: 13px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.m-psf { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .m-tags { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
 .m-tags:empty { display: none; }
 .m-tag { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--soft); color: var(--muted); }

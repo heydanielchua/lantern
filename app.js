@@ -38,7 +38,7 @@
   }
   function money(v) {
     if (v == null) return '—';
-    if (v >= 1e6) return '$' + (v / 1e6).toFixed(2).replace(/0$/, '') + 'M';
+    if (v >= 999500) return '$' + (v / 1e6).toFixed(2).replace(/0$/, '') + 'M';   // below this it would read "$1000k"
     if (v >= 1e3) return '$' + Math.round(v / 1e3) + 'k';
     return '$' + v;
   }
@@ -2030,8 +2030,10 @@
       var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
       var on = S.panel && S.panel.condo === k;
       return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-        '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small></span>' +
-        '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') + scoreTag(c) + '</span></span></button>';
+        '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small>' +
+        (unitFacts(u[0]) ? '<small class="fx">' + unitFacts(u[0]) + '</small>' : '') + '</span>' +
+        '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') +
+        (unitPsf(u[0]) ? '<small class="psf">' + unitPsf(u[0]) + '</small>' : '') + scoreTag(c) + '</span></span></button>';
     }).join('') : (gone.length || lost.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
       gone.map(function (k) {      // every unit was sold / taken down since: kept, greyed, until you remove it
         var g = S.gone[k];
@@ -2546,6 +2548,7 @@
     document.body.appendChild(bar);
     var page = document.createElement('section');
     page.id = 'mPage'; page.className = 'm-page'; page.hidden = true;
+    page.addEventListener('scroll', mTitleSize, { passive: true });
     document.body.appendChild(page);
     var side = document.createElement('div');
     side.className = 'm-side';
@@ -2663,6 +2666,12 @@
     var page = $('mPage'), y = page.scrollTop;
     page.innerHTML = mTab === 'list' ? mListHtml() : (mTab === 'short' ? mShortHtml() : mCompareHtml());
     page.scrollTop = top ? 0 : y;
+    mTitleSize();
+  }
+  // iOS large title: full size at the top, shrunk to a bar once you scroll (7 Nov, option B)
+  function mTitleSize() {
+    var page = $('mPage'), h = page && page.querySelector('.m-lt');
+    if (h) h.classList.toggle('shrunk', page.scrollTop > 24);
   }
   function mBadge() {
     if (!M) return;
@@ -2849,12 +2858,26 @@
     if (w) out.push(w);
     return out.slice(0, 2).map(function (t) { return '<span class="m-tag ' + t[1] + '">' + esc(t[0]) + '</span>'; }).join('');
   }
+  // What you actually compare on: beds, size and $psf of the unit whose price is shown (the cheapest).
+  // 99.co's table has these and ours didn't — you can't judge a price without the size behind it (7 Nov).
+  function unitFacts(l) {
+    if (!l) return '';
+    var bits = [];
+    if (l.beds) bits.push(l.beds + (l.beds >= 4 ? '+' : '') + ' bed');
+    if (l.size) bits.push(n(l.size) + ' sqft');
+    return bits.join(' · ');
+  }
+  function unitPsf(l) { return l && l.psf ? '$' + n(Math.round(l.psf)) + ' psf' : ''; }
+
   function mItem(c, lead) {
     var a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units, k = sameUnits(u).length;
     return '<button type="button" class="m-item" data-open="' + esc(c.key) + '">' + (lead || '') + mThumb(c) +
       '<span class="m-mid"><span class="m-nm">' + esc(c.name) + '</span><span class="m-ar">' + esc([a.name, c.district].filter(Boolean).join(' · ')) +
-      ' · ' + k + ' for sale</span><span class="m-tags">' + mTags(c) + '</span></span>' +
-      '<span class="m-rt"><span class="m-pr">' + money(u[0].price) + '</span>' + (c.score && c.score.total != null ? '<span class="m-sc">Score ' + c.score.total + '</span>' : '') + '</span></button>';
+      ' · ' + k + ' for sale</span>' + (unitFacts(u[0]) ? '<span class="m-fx">' + unitFacts(u[0]) + '</span>' : '') +
+      '<span class="m-tags">' + mTags(c) + '</span></span>' +
+      '<span class="m-rt"><span class="m-pr">' + money(u[0].price) + '</span>' +
+      (unitPsf(u[0]) ? '<span class="m-psf">' + unitPsf(u[0]) + '</span>' : '') +
+      (c.score && c.score.total != null ? '<span class="m-sc">Score ' + c.score.total + '</span>' : '') + '</span></button>';
   }
   function mListCondos() {
     var q = mList.q.toLowerCase();
@@ -2875,10 +2898,29 @@
     });
     return cs;
   }
+  // Grouped by planning area (option B, 7 Nov) WITHOUT losing the chosen sort: the shown condos are sliced in
+  // sort order first, so each area appears where its best condo falls and the rows inside keep that order too.
   function mListItems() {
     var cs = mListCondos();
-    return (cs.length ? cs.slice(0, mList.n).map(function (c) { return mItem(c); }).join('') : '<div class="m-empty">No condos match. Try fewer filters.</div>') +
-      (cs.length > mList.n ? '<button type="button" class="m-more" data-mmore>Show more (' + n(cs.length - mList.n) + ' left)</button>' : '');
+    if (!cs.length) return '<div class="m-empty">No condos match. Try fewer filters.</div>';
+    var show = cs.slice(0, mList.n);
+    var more = cs.length > mList.n ? '<button type="button" class="m-more" data-mmore>Show more (' + n(cs.length - mList.n) + ' left)</button>' : '';
+    // Area headings only where they don't fight the sort. "Lowest price" and "Newest" promise one strict
+    // order down the page, and grouping breaks it ($1.2M above $900k), so those stay one plain run.
+    if (mList.sort !== 'score' || mList.quick === 'below') {
+      return '<div class="m-group">' + show.map(function (c) { return mItem(c); }).join('') + '</div>' + more;
+    }
+    var order = [], groups = {};
+    show.forEach(function (c) {
+      var name = (S.areas[c.area] || {}).name || 'Not placed on the map';
+      if (!groups[name]) { groups[name] = []; order.push(name); }
+      groups[name].push(c);
+    });
+    return order.map(function (name) {
+      var d = groups[name][0].district;
+      return '<div class="m-ghead">' + esc(name) + (d ? ' · ' + esc(d) : '') + '</div>' +
+        '<div class="m-group">' + groups[name].map(function (c) { return mItem(c); }).join('') + '</div>';
+    }).join('') + more;
   }
   function mListHtml() {
     var units = S.listings.filter(visible).length, condos = {}, tags = activeTags();
@@ -2924,7 +2966,7 @@
     return '<header class="m-lt"><h1>Shortlist</h1><div class="m-meta">' + total + ' condo' + (total === 1 ? '' : 's') +
       ' · <span class="js-sync" title="' + esc(SYNC.note) + '">' + syncHtml() + '</span></div>' +
       (all.length > 1 ? '<div class="m-chiprow">' + chip('added', 'Newest added') + chip('score', 'Best score') + chip('price', 'Price') + '</div>' : '') + '</header>' +
-      '<div class="m-list">' + (rows || '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo and tap ☆ Shortlist.</div>') + '</div>' +
+      '<div class="m-list">' + (rows ? '<div class="m-group">' + rows + '</div>' : '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo and tap ☆ Shortlist.</div>') + '</div>' +
       (all.length > 1 ? '<div class="m-hint">Tick condos to compare · swipe left to remove</div>' : '') +
       (mSel.length >= 2 ? '<button type="button" class="m-fab" data-mcmp>' + mIcon('cols') + 'Compare ' + mSel.length + '</button>' : '');
   }
