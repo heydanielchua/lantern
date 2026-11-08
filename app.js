@@ -5,7 +5,7 @@
   var SCORE_AXES = ['Parks & nature', 'Car to VivoCity', 'Price', 'Quiet area', 'Holds value'];
   var SCORE_SHORT = ['Parks', 'Car', 'Price', 'Quiet', 'Value'];
   var SCORE_WEIGHTS = [20, 30, 15, 15, 20];     // same order as SCORE_AXES; add up to 100 (agreed 24 Oct)
-  var PRICE_STEPS = [800000, 1000000, 1200000, 1400000, 1600000, 1800000, 2000000, 2200000, 2500000];   // budget S$2.5M (25 Oct)
+  var PRICE_STEPS = [800000, 1000000, 1200000, 1400000, 1600000, 1800000, 1900000, 2000000];   // budget back to S$2M (8 Nov)
 
   var S = {
     listings: [], condos: {}, areas: {}, meta: {},
