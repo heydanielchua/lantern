@@ -24,6 +24,9 @@
   --star: #f26a2e;
   --pin: #0C0C0C;
   --radius: 24px;       /* was 30; the reference sits tighter */
+  --left-card: 420px;   /* the shortlist's width (Daniel chose it, 9 Nov: at 420 no condo name wraps;
+                           measured 340 = 4 wrap, 380 = 2, 420 and 460 = none). The map's bottom-left
+                           column steps aside by this. */
   --serif: "Newsreader", Georgia, "Times New Roman", serif;   /* money and big numbers only */
   /* Names and the wordmark are Urbanist (9 Nov, Daniel). Newsreader stays on the figures, so a price
      still reads as money rather than as another label. Swap this to var(--serif) to undo. */
@@ -113,6 +116,10 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
    water blue, expressways visible — all of them things the condo score or a warning depends on.
    Pushed slightly cool so the green agrees with the sage #4C7458 used for the selected area. */
 .leaflet-tile-pane { filter: saturate(0.42) brightness(1.07) contrast(0.88) hue-rotate(-8deg); }
+/* Close in the pictures swap to OneMap's grey set (app.js zoomClass, zoom 16 and up), which draws the same
+   building shapes without the street names and block numbers. Those pictures are already grey, so they only
+   need the gentle lift the old map used, not the colour filter above. */
+#map.zoom-close .leaflet-tile-pane { filter: brightness(1.06) contrast(0.86); }
 
 .map-wrap::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 400;
   background: radial-gradient(900px 600px at 60% 40%, rgba(255, 255, 255, 0) 40%, rgba(236, 236, 234, 0.55) 100%); }
@@ -175,7 +182,14 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
               inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.2);
   display: flex; flex-direction: column; overflow: hidden; transition: transform 250ms ease;
 }
-.card-left { left: 16px; bottom: auto; max-height: calc(100% - 32px); width: min(280px, calc(100% - 32px)); transform: translateX(calc(-100% - 32px)); }
+/* 280px was too narrow once the padding went up: 10 of 15 shortlisted names wrapped onto two lines, and
+   two of the beds/size lines wrapped as well. Measured at 300/320/340/360 — 340 leaves one name wrapping
+   ("Park Place Residences at Plq", which is long by any measure) and none of the facts. The padding here
+   stays 20, not the 24 the condo card uses: the reference's 7.9% was measured on a 504px card, and a
+   narrow side list is a different thing. (9 Nov, Daniel: "it seems to be too narrow?") */
+.card-left { left: 16px; bottom: auto; max-height: calc(100% - 32px); width: min(var(--left-card), calc(100% - 32px)); transform: translateX(calc(-100% - 32px)); }
+#shortlist .card-head { padding: 20px 20px 12px; }
+#shortlist .card-body { padding: 8px 20px 16px; }
 .card-left .card-body { flex: 0 1 auto; }
 .card-right { right: 16px; width: min(430px, calc(100% - 32px)); transform: translateX(calc(100% + 32px)); }
 .card.open { transform: none; }
@@ -266,10 +280,16 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 /* condo tabs */
 .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .tabs button {
-  font: inherit; font-size: 13.5px; font-weight: 600; padding: 8px 16px; border: 1px solid var(--edge); border-radius: 999px;
+  /* 12px, not 16: four tabs had to fit a 380px row and "Condos (147)" overflowed it by 3px — Daniel's
+     Geylang. Measured: at 16 the row has NO headroom (380/380 at 114 condos); at 12 with the lighter
+     count below it has 28-43px spare even at a four-figure count. */
+  font: inherit; font-size: 13.5px; font-weight: 600; padding: 8px 12px; border: 1px solid var(--edge); border-radius: 999px;
   background: var(--panel); cursor: pointer; color: var(--muted);
 }
 .tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* the count on a tab: quieter than its word, and narrower, which is what buys the row its room */
+.tabs button .n { font-size: 12px; font-weight: 500; opacity: 0.72; margin-left: 1px; }
+.tabs button[aria-selected="true"] .n { opacity: 0.8; }
 .stat-btn { font: inherit; text-align: left; cursor: pointer; }
 .stat-btn:hover { background: #fff; }
 .link-btn { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint);
@@ -475,7 +495,10 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .hund { display: flex; gap: 1.6px; height: 60px; align-items: flex-end; margin-top: 4px; }
 .hund i { flex: 1; border-radius: 1px; }
 .hseg { display: flex; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
-.hseg div { border-left: 1px solid #cfcec9; padding-left: 5px; line-height: 1.3; white-space: nowrap; }
+/* A narrow slice cannot hold its own word, and nowrap made it spill over the next slice's rule line.
+   Clip it instead: the percentage above is the number that matters. */
+.hseg div { border-left: 1px solid #cfcec9; padding-left: 5px; line-height: 1.3; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .hseg b { display: block; color: var(--ink); font-size: 14px; font-weight: 600; }
 .cols.lines { justify-content: space-between; padding: 6px 4px 0; }
 .cols.lines .top { font-size: 12px; color: var(--faint); margin-bottom: 6px; } .cols.lines .top strong { color: var(--ink); font-weight: 500; }
@@ -559,6 +582,12 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 /* the shared bottom-left column: facts strip on top, place chips under it */
 .map-bl { position: absolute; left: 16px; bottom: 16px; z-index: 900; display: flex; flex-direction: column;
   gap: 12px; align-items: flex-start; max-width: calc(100% - 480px); }
+/* No transition on `left`: app.js measures this column right after the shortlist opens to decide whether
+   the facts strip still fits, and a transition makes that read return the OLD position — which showed
+   the strip exactly when there was no room and hid it when there was. */
+/* The shortlist sits in this same corner. When it is open the facts strip and the place chips step aside,
+   otherwise the card covers them — and covered chips cannot be clicked. */
+.map-wrap.left-open .map-bl { left: calc(32px + var(--left-card)); max-width: calc(100% - 480px - var(--left-card) - 16px); }
 /* strip above the chips, whichever order they were created in; each card is its own height — stretching
    them to match left the two shorter ones with a lot of dead space */
 .fact-strip { display: flex; gap: 16px; align-items: flex-start; pointer-events: none; order: 1; }
@@ -683,8 +712,10 @@ html.m .fact-strip { display: none; }      /* the phone has the sheet instead */
 .compare .card-body { overflow: auto; padding: 0 0 14px; }        /* no padding: the fixed name row / label column sit flush */
 table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
 .cmptable th, .cmptable td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-.cmptable th { position: sticky; top: 0; background: #f8f8f6; z-index: 2; border-bottom: 1px solid var(--edge); min-width: 150px; }
-.cmptable th:first-child, .cmptable td.lab { position: sticky; left: 0; background: #f8f8f6; z-index: 1; color: var(--muted); min-width: 170px; padding-left: 16px; }
+/* 150 put long names on three lines at 1280 ("Piccadilly Grand / Piccadilly Galleria"). 176 holds them
+   to two, which is as good as it gets for a name that long in a column. */
+.cmptable th { position: sticky; top: 0; background: #f8f8f6; z-index: 2; border-bottom: 1px solid var(--edge); min-width: 176px; }
+.cmptable th:first-child, .cmptable td.lab { position: sticky; left: 0; background: #f8f8f6; z-index: 1; color: var(--muted); min-width: 186px; padding-left: 16px; }
 .cmptable th:first-child { z-index: 3; }
 .cmptable .cname { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: var(--ink);
   font-family: var(--name); font-size: 19px; font-weight: 600; line-height: 1.14; letter-spacing: -0.02em; }
@@ -874,7 +905,14 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
   box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.4); font: inherit; color: var(--ink); position: relative; transition: transform 200ms ease; }
 .m-item img, .m-noimg { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; flex: none; background: #ecebe8; }
 .m-item .m-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; margin: 0; align-items: stretch; }
-.m-nm { font-family: var(--name); font-size: 18px; font-weight: 600; line-height: 1.16; letter-spacing: -0.015em; }
+/* A name longer than the card gets two lines, never three: "Piccadilly Grand / Piccadilly Galleria" was
+   taking three and pushing everything under it out of line.
+   Belt and braces, because .m-nm is a flex item: the browser blockifies -webkit-box to flow-root, and
+   Safari's -webkit-line-clamp only fires on a real -webkit-box. The max-height caps it either way; where
+   the clamp does apply you also get the ellipsis. */
+.m-nm { font-family: var(--name); font-size: 18px; font-weight: 600; line-height: 1.16; letter-spacing: -0.015em;
+  max-height: 2.32em; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .m-ar { color: var(--muted); font-size: 13px; margin-top: 3px; }
 /* beds / size / psf of the unit whose price is shown — the numbers you compare on (7 Nov) */
 .m-fx { color: var(--ink); font-size: 13px; margin-top: 3px; font-variant-numeric: tabular-nums; }

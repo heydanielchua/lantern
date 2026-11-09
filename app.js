@@ -542,15 +542,21 @@
   function areaTitle(a) { return a ? a.name + (a.label ? ' · ' + a.label : '') : ''; }
 
   // ---- map ----------------------------------------------------------------------
-  var placeLayer;
+  var placeLayer, tiles, tilesNow = 'Default';
+  // Which OneMap picture set at which zoom — see the note in setupMap. Map zoom, not picture zoom.
+  var TILES = { far: 'Default', close: 'GreyLite' }, CLOSE_FROM = 16;
   function setupMap() {
     var sw = L.latLng(1.144, 103.535), ne = L.latLng(1.494, 104.502);
     map = L.map('map', { minZoom: 11, maxZoom: 19, maxBounds: L.latLngBounds(sw, ne), zoomControl: false })
       .setView([1.33, 103.86], 13);
-    // OneMap's Default pictures, turned right down (style.css .leaflet-tile-pane) — 9 Nov.
-    // GreyLite has no colour left to recover, so parks, water and the expressways were invisible;
-    // those are three of the things HomeQuest scores and warns about.
-    L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', {
+    // Two OneMap picture sets, each used where it is good (9 Nov).
+    //   Far out  — Default, turned right down: parks, water and the expressways show, and those are three of
+    //              the things HomeQuest scores and warns about. GreyLite has no colour left to recover.
+    //   Close in — GreyLite: the coloured pictures print every street name and HDB block number close up,
+    //              which reads like an old street directory (Daniel). Washing them out hid the building
+    //              shapes along with the numbers, and the shapes are worth keeping, so the pictures swap
+    //              instead. The grey set draws the same footprints with almost no words on them.
+    tiles = L.tileLayer('https://www.onemap.gov.sg/maps/tiles/' + TILES.far + '/{z}/{x}/{y}.png', {
       detectRetina: true, maxZoom: 19, minZoom: 11,
       attribution: '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo_round@2x.png" alt="">' +
         '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a> © contributors | ' +
@@ -585,6 +591,16 @@
   function zoomClass() {
     $('map').classList.toggle('zoom-low', map.getZoom() <= 12);
     $('map').classList.toggle('labels-off', map.getZoom() < LABEL_ZOOM);     // name tags only when zoomed in close
+    // Close in, swap to the grey pictures: the coloured ones print every street name and HDB block number
+    // there. setUrl only touches the layer when the set actually changes, so panning around at one zoom
+    // does not redraw. See the TILES note where the layer is made.
+    var close = map.getZoom() >= CLOSE_FROM;
+    $('map').classList.toggle('zoom-close', close);
+    var want = close ? TILES.close : TILES.far;
+    if (want !== tilesNow) {
+      tilesNow = want;
+      tiles.setUrl('https://www.onemap.gov.sg/maps/tiles/' + want + '/{z}/{x}/{y}.png');
+    }
   }
 
   function areaStyle(id) {
@@ -1016,6 +1032,10 @@
       bottomLeft().appendChild(el);
     }
     var open = !M && S.panel && S.panel.type === 'condo' && S.condos[S.panel.condo];
+    // It is a convenience, not the only place these numbers live — they are all on the card behind it.
+    // So when the window is narrow, or the shortlist is open beside it, drop the strip rather than let
+    // its three cards squeeze until the words wrap.
+    if (open && roomForStrip() < STRIP_NEEDS) open = false;
     if (!open) { el.hidden = true; return; }
     var c = S.condos[S.panel.condo], units = shown(c);
     if (!units.length) units = c.units;
@@ -1048,6 +1068,16 @@
   // The bottom-left corner is shared by the place chips and the facts strip. They live in one column so
   // they stack on their own; measuring one to place the other went wrong, because the chips are drawn
   // after the card is.
+  // Clear width between whatever is on the left (the shortlist, when open) and the condo card.
+  var STRIP_NEEDS = 660;        // three cards at 190-240 plus two 16px gaps, measured
+  function roomForStrip() {
+    var bl = $('mapBL'), card = $('detail');
+    if (!bl || !card) return 0;
+    var left = bl.getBoundingClientRect().left;
+    var right = card.classList.contains('open') ? card.getBoundingClientRect().left : $('map').getBoundingClientRect().right;
+    return right - left - 16;
+  }
+
   function bottomLeft() {
     var box = $('mapBL');
     if (!box) {
@@ -1104,7 +1134,8 @@
     el.setAttribute('aria-hidden', 'false');
     el.querySelector('.card-body').scrollTop = 0;
     declutter();
-    setTimeout(declutter, 520);   // again once the map has finished flying to the condo
+    setTimeout(function () { declutter(); factStrip(); }, 520);   // again once the map has landed and
+                                                                  // the card has finished sliding in
     factStrip();
     if (S.panel.type === 'condo') loadGoogle(S.condos[S.panel.condo]);
   }
@@ -1119,7 +1150,7 @@
     return '<div class="card-head"><div class="head-col"><div class="head-row" style="align-items:flex-start"><div><div class="title">' + esc(a.name) + '</div>' +
       '<div class="sub">URA planning area' + (a.label ? ' · ' + esc(a.label) : '') + '</div></div>' +
       '<button type="button" class="icon-btn" data-action="close" aria-label="Close">×</button></div>' +
-      tabButtons([['summary', 'Summary'], ['people', 'People'], ['growth', 'Growth'], ['condos', 'Condos (' + n + ')']], tab) +
+      tabButtons([['summary', 'Summary'], ['people', 'People'], ['growth', 'Growth'], ['condos', 'Condos <span class="n">' + n + '</span>']], tab) +
       '</div></div>' +
       '<div class="card-body">' + ({ people: areaPeople, growth: areaGrowth, condos: areaCondosTab }[tab] || areaSummary)(id) + '</div>';
   }
@@ -1436,7 +1467,7 @@
       '<button type="button" class="icon-btn" data-action="close" aria-label="Close">×</button></div>' +
       '<div class="head-row" style="align-items:flex-start"><div><div class="title">' + esc(c.name) + (c.ec ? '<span class="badge">EC</span>' : '') + '<span id="gRating" class="g-rating">' + googleRating(c) + '</span></div>' +
       '<div class="sub">' + esc([c.address, a.name, c.district].filter(Boolean).join(' · ')) + '</div></div></div>' +
-      tabButtons([['summary', 'Summary'], ['nearby', 'Nearby'], ['prices', 'Prices'], ['sale', 'For sale (' + groups.length + ')']], tab) +
+      tabButtons([['summary', 'Summary'], ['nearby', 'Nearby'], ['prices', 'Prices'], ['sale', 'For sale <span class="n">' + groups.length + '</span>']], tab) +
       '</div></div>' +
       '<div class="card-body">' + (tab === 'sale' ? saleTab(c, groups) : (tab === 'prices' ? uraSalesBlock(c) + rentTab(c, units) :
         (tab === 'nearby' ? nearbyBlock(c) + neighbourhoodBlock(c) : condoSummary(c, units, groups)))) + '</div>' + dock(c, units, star);
@@ -2292,7 +2323,7 @@
       ['How busy (people / km²)', 'busy', function (x) { return x ? n(x) : '—'; }, 'low'],
       ['Renting level', 'rent', function (x) { return RENT_TEXT[x] || '—'; }, null],
       ['Nearest expressway', 'xway', function (x, f) { return x === Infinity ? 'over 1 km' : (x != null ? esc(f.xwayName) + ' · ' + metres(x) : '—'); }, 'high'],
-      ['New homes being built ≤ 1 km', 'newUnits', function (x) { return x ? n(x) + ' units' : 'none'; }, 'low'],
+      ['New homes ≤ 1 km', 'newUnits', function (x) { return x ? n(x) + ' units' : 'none'; }, 'low'],
       ['Watch-outs', 'watch', function (x) { return x.length ? x.join('<br>') : '<span class="ok-text">none</span>'; }, null]]],
     ['On the market', [['Longest listed', 'days', function (x) { return x != null ? x + ' days' : '—'; }, null]]]
   ];
@@ -2371,6 +2402,8 @@
     $('shortlist').classList.toggle('open', open);
     document.querySelector('.map-wrap').classList.toggle('left-open', open);
     $('btnShortlist').setAttribute('aria-pressed', String(open));
+    // the shortlist takes the left of the map, so there may no longer be room for the facts strip
+    factStrip();
   }
 
   // ---- filters ------------------------------------------------------------------
