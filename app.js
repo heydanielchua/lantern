@@ -547,23 +547,29 @@
     var sw = L.latLng(1.144, 103.535), ne = L.latLng(1.494, 104.502);
     map = L.map('map', { minZoom: 11, maxZoom: 19, maxBounds: L.latLngBounds(sw, ne), zoomControl: false })
       .setView([1.33, 103.86], 13);
-    L.tileLayer('https://www.onemap.gov.sg/maps/tiles/GreyLite/{z}/{x}/{y}.png', {
+    // OneMap's Default pictures, turned right down (style.css .leaflet-tile-pane) — 9 Nov.
+    // GreyLite has no colour left to recover, so parks, water and the expressways were invisible;
+    // those are three of the things HomeQuest scores and warns about.
+    L.tileLayer('https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png', {
       detectRetina: true, maxZoom: 19, minZoom: 11,
       attribution: '<img src="https://www.onemap.gov.sg/web-assets/images/logo/om_logo_round@2x.png" alt="">' +
         '<a href="https://www.onemap.gov.sg/" target="_blank" rel="noopener">OneMap</a> © contributors | ' +
         '<a href="https://www.sla.gov.sg/" target="_blank" rel="noopener">Singapore Land Authority</a>'
     }).addTo(map);
-    // OneMap draws an "INSET · Not to scale" box into its zoomed-out pictures, in the sea — at a different spot for each picture
-    // zoom (11–12: south-east of Changi; 13: just off the East Coast). Paint over it in sea colour, inside the picture layer so it
-    // gets the same grey filter (style.css .leaflet-tile-pane). Retina screens use the next picture zoom (detectRetina).
-    map.createPane('seaCover', map.getPane('tilePane')).style.zIndex = 2;
-    var sea = { pane: 'seaCover', stroke: false, fillColor: '#d4d4d4', fillOpacity: 1, interactive: false };
-    var far = L.rectangle([[1.128, 103.952], [1.252, 104.115]], sea);
-    var near = L.polygon([[1.2872, 103.9078], [1.2872, 103.9169], [1.294, 103.9169], [1.294, 103.9395], [1.3019, 103.9395], [1.3019, 103.9724],
-      [1.294, 103.9724], [1.294, 103.9993], [1.2341, 103.9993], [1.2341, 103.9078]], sea);
+    // OneMap draws an "INSET · Not to scale" box into its zoomed-out pictures, out in the sea, and we cover it.
+    // 9 Nov, with the Default pictures: measured off a real tile (picture zoom 12, converted from the tile's own
+    // z/x/y) the box sits just off the East Coast at 1.242–1.302 N, 103.915–103.992 E — the same place the grey
+    // pictures put it at zoom 13, which is a useful cross-check. The old pair of shapes (one south-east of Changi
+    // for 11–12, one off the East Coast for 13) is therefore now one rectangle.
+    // The cover sits in its OWN pane ABOVE the pictures, not inside them. Inside, it was filtered twice over,
+    // and a backdrop-filter there samples nothing because the picture layer's own `filter` cuts the backdrop off.
+    // Out here the colour below is simply the sea as drawn, sampled at the box: #8EAABE.
+    map.createPane('seaCover').style.zIndex = 250;   // above the pictures (200), below the area outlines (400)
+    var sea = { pane: 'seaCover', stroke: false, fillColor: '#8eaabe', fillOpacity: 1, interactive: false };
+    var inset = L.rectangle([[1.238, 103.911], [1.306, 103.996]], sea);
     function insetCover() {
-      var z = map.getZoom() + (L.Browser.retina ? 1 : 0);
-      [[far, z <= 12], [near, z === 13]].forEach(function (x) { if (x[1]) x[0].addTo(map); else x[0].remove(); });
+      var z = map.getZoom() + (L.Browser.retina ? 1 : 0);   // retina loads the next picture zoom (detectRetina)
+      if (z <= 13) inset.addTo(map); else inset.remove();
     }
     map.on('zoomend', insetCover);
     insetCover();
@@ -572,6 +578,7 @@
     map.on('zoomend', zoomClass);
     map.on('zoomend', function () { if (S.pm.on) drawPriceMap(); });
     map.on('moveend', declutter);
+    window.addEventListener('resize', function () { declutter(); factStrip(); });
     zoomClass();
   }
 
@@ -712,6 +719,7 @@
     requestAnimationFrame(function () {
       declutterQueued = false;
       var tags = [];
+      hideUnderCard();
       Object.keys(markers).forEach(function (k) {
         var icon = markers[k]._icon, el = icon && icon.querySelector('.plabel');
         if (!el) return;
@@ -995,10 +1003,65 @@
   // Rush-hour drive (Google, 27 Oct) — Google's rules: not shown once it's more than 30 days old
   function rushOf(nb) { return nb && nb.rush && daysAgo(nb.rush.on) <= 30 ? nb.rush : null; }
 
+  // ---- facts strip over the map (9 Nov, from the reference Daniel chose) ----------------------
+  // Three glass cards bottom-left while a condo is open. The middle one carries the device worth
+  // stealing from the reference: show the whole scale and DIM the part that does not apply, so a
+  // bedroom count this condo has none of is visible as absent rather than simply missing.
+  // Laptop only — the phone has the sheet instead.
+  function factStrip() {
+    var el = $('factStrip');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'factStrip'; el.className = 'fact-strip'; el.hidden = true;
+      bottomLeft().appendChild(el);
+    }
+    var open = !M && S.panel && S.panel.type === 'condo' && S.condos[S.panel.condo];
+    if (!open) { el.hidden = true; return; }
+    var c = S.condos[S.panel.condo], units = shown(c);
+    if (!units.length) units = c.units;
+    if (!units.length) { el.hidden = true; return; }
+
+    var prices = units.map(function (u) { return u.price; }).filter(function (v) { return v > 0; }).sort(function (a, b) { return a - b; });
+    function med(a) { return a.length ? a[Math.floor(a.length / 2)] : null; }
+    var byBed = {};
+    units.forEach(function (u) { if (u.beds && u.size) (byBed[u.beds] = byBed[u.beds] || []).push(u.size); });
+    Object.keys(byBed).forEach(function (k) { byBed[k].sort(function (a, b) { return a - b; }); byBed[k] = med(byBed[k]); });
+    var beds = [2, 3, 4];                       // the sizes Daniel is looking for; 2+ bedrooms, so start at 2
+    var parts = nearParts(c);
+
+    el.hidden = false;
+    el.innerHTML =
+      (prices.length ? '<div class="fact-c"><div class="fact-t">Asking</div><div class="fact-scale">' +
+        '<b>Cheapest</b><b>Typical</b><b>Dearest</b>' +
+        '<span>' + money(prices[0]) + '</span><span>' + money(med(prices)) + '</span><span>' + money(prices[prices.length - 1]) + '</span>' +
+        '</div></div>' : '') +
+      '<div class="fact-c"><div class="fact-t">Typical size · sqft</div><div class="fact-scale">' +
+        beds.map(function (b) { return '<b' + (byBed[b] ? '' : ' class="off"') + '>' + b + ' bed</b>'; }).join('') +
+        beds.map(function (b) { return byBed[b] ? '<span>' + n(byBed[b]) + '</span>' : '<span class="off">none</span>'; }).join('') +
+      '</div></div>' +
+      '<div class="fact-c"><div class="fact-t">Getting out</div><div class="fact-rows">' +
+        parts.map(function (x) { return '<div><span>' + x[0] + '</span><b class="' + x[2] + '">' + x[1] + '</b></div>'; }).join('') +
+      '</div></div>';
+
+  }
+
+  // The bottom-left corner is shared by the place chips and the facts strip. They live in one column so
+  // they stack on their own; measuring one to place the other went wrong, because the chips are drawn
+  // after the card is.
+  function bottomLeft() {
+    var box = $('mapBL');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'mapBL'; box.className = 'map-bl';
+      $('map').parentNode.appendChild(box);
+    }
+    return box;
+  }
+
   function setupPlaceLegend() {
     var el = document.createElement('div');
     el.id = 'placeLegend'; el.className = 'place-legend'; el.hidden = true;
-    $('map').parentNode.appendChild(el);
+    bottomLeft().appendChild(el);
     el.addEventListener('click', function (e) {
       var b = e.target.closest('button[data-place]');
       if (!b) return;
@@ -1008,14 +1071,41 @@
     });
   }
 
+  // The cards are see-through now (9 Nov), so the map's OWN pins showed through them and sat among the
+  // card's words — "Affinity At Serangoon" reading straight through the Sky Habitat card. This gives the
+  // screen x where the open card starts, and 0 when none is open; declutter hides the pins past it.
+  // offsetLeft, NOT getBoundingClientRect: the card slides in with a transform, and a rect read during
+  // that slide puts it off the right-hand edge.
+  function underCardFrom() {
+    var map$ = $('map'), el = $('detail');
+    if (!map$ || M || !el || !el.classList.contains('open')) return 0;
+    return map$.getBoundingClientRect().left + el.offsetLeft;
+  }
+
+  // Every pin on the map, not only the condos: area labels and the place icons showed through the card too.
+  // Measure the LABEL where there is one — a pin's own box is just the dot, and the name beside it hangs
+  // outside that box, so going by the dot left the names poking out from under the card.
+  function hideUnderCard() {
+    var edge = underCardFrom();
+    document.querySelectorAll('.leaflet-marker-icon').forEach(function (icon) {
+      if (edge <= 0) { icon.classList.remove('under-card'); return; }
+      var lab = icon.querySelector('.plabel');
+      var r = (lab && lab.getBoundingClientRect().width ? lab : icon).getBoundingClientRect();
+      icon.classList.toggle('under-card', r.right > edge);
+    });
+  }
+
   function renderPanel() {
     if (M) return mSheet();
     var el = $('detail');
-    if (!S.panel) { el.classList.remove('open'); el.setAttribute('aria-hidden', 'true'); return; }
+    if (!S.panel) { el.classList.remove('open'); el.setAttribute('aria-hidden', 'true'); declutter(); factStrip(); return; }
     el.innerHTML = S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(S.condos[S.panel.condo]);
     el.classList.add('open');
     el.setAttribute('aria-hidden', 'false');
     el.querySelector('.card-body').scrollTop = 0;
+    declutter();
+    setTimeout(declutter, 520);   // again once the map has finished flying to the condo
+    factStrip();
     if (S.panel.type === 'condo') loadGoogle(S.condos[S.panel.condo]);
   }
 
@@ -1386,18 +1476,24 @@
 
   // Half-circle gauge: drive to VivoCity in the middle; MRT, hawker, supermarket below (green = close, red = far)
   var CLOSE = { mrt: 800, hawker: 600, shop: 600 };          // metres; MRT also counts as close at ≤ 10 min walk
-  function condoHero(c, units, groups) {
-    var nb = c.near || {}, u = c.ura, now = new Date().getFullYear();
-    var lease = u && u.leaseYears && u.leaseStart ? u.leaseYears + '-yr · ' + Math.max(u.leaseYears - (now - u.leaseStart), 0) + ' left'
-      : (isFreehold(c.tenure) ? 'Freehold' : (c.tenure || ''));
-    var price = units[0].price, drops = groups.filter(function (g) { return priceMove(g) < 0; }).length;
+  // MRT / hawker / supermarket, as [label, value, near|far|'']. Used by the hero gauge AND by the facts
+  // strip over the map, so the two can never disagree.
+  function nearParts(c) {
+    var nb = c.near || {};
     function state(m, limit, walk) { return m == null ? '' : ((walk != null ? walk <= 10 : m <= limit) ? 'near' : 'far'); }
-    var parts = [
+    return [
       ['MRT ' + (nb.mrt && nb.mrt.exit ? 'exit ' + esc(nb.mrt.exit) : ''), nb.mrt ? (nb.mrt.walkMin ? nb.mrt.walkMin + ' min' : metres(nb.mrt.m)) : '—',
         state(nb.mrt && nb.mrt.m, CLOSE.mrt, nb.mrt && nb.mrt.walkMin)],
       ['Hawker', nb.hawkers && nb.hawkers[0] ? metres(nb.hawkers[0].m) : '—', state(nb.hawkers && nb.hawkers[0] && nb.hawkers[0].m, CLOSE.hawker)],
       ['Supermarket', nb.supermarket ? metres(nb.supermarket.m) : '—', state(nb.supermarket && nb.supermarket.m, CLOSE.shop)]
     ];
+  }
+  function condoHero(c, units, groups) {
+    var nb = c.near || {}, u = c.ura, now = new Date().getFullYear();
+    var lease = u && u.leaseYears && u.leaseStart ? u.leaseYears + '-yr · ' + Math.max(u.leaseYears - (now - u.leaseStart), 0) + ' left'
+      : (isFreehold(c.tenure) ? 'Freehold' : (c.tenure || ''));
+    var price = units[0].price, drops = groups.filter(function (g) { return priceMove(g) < 0; }).length;
+    var parts = nearParts(c);
     var colour = { near: '#38bc37', far: '#f44336', '': '#d6d5d0' };
     function arc(a0, a1, col) {
       function pt(a) { var r = a * Math.PI / 180; return (120 + 100 * Math.cos(r)).toFixed(1) + ' ' + (120 - 100 * Math.sin(r)).toFixed(1); }

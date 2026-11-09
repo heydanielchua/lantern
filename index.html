@@ -36,6 +36,9 @@
   <button type="button" id="btnShortlist" class="btn btn-toggle" aria-pressed="true">★ Shortlist</button>
   <strong class="brand">HomeQuest</strong>
 
+  <!-- One capsule holds the search and the three switches (9 Nov, from the reference Daniel chose):
+       one floating object instead of four separate pills. -->
+  <div class="navcap">
   <div class="search">
     <label for="search" class="sr-only">Search condo, street or MRT</label>
     <input id="search" type="search" placeholder="Search condo, street or MRT" autocomplete="off">
@@ -97,6 +100,7 @@
 
   <button type="button" id="btnBelow" class="btn btn-toggle" aria-pressed="false" title="Ring the condos with a unit asking 5%+ below what similar units there sold for">▼ Below recent sales</button>
   <button type="button" id="btnPriceMap" class="btn btn-toggle" aria-pressed="false" title="Shade each area cheaper or dearer than Singapore / its region">Price map</button>
+  </div><!-- /.navcap -->
   <div class="spacer"></div>
   <span id="count" class="meta">Loading…</span>
   <span id="status" class="meta status"></span>

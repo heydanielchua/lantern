@@ -9,21 +9,21 @@
 
 :root {
   --ink: #2b2b2a;
-  --muted: #77766f;
+  --muted: #66655f;     /* was #77766f: measured 3.97 against the card, which fails AA. 5.09 now. */
   --faint: #a9a8a2;
   --line: #e6e5e1;
   --soft: #f2f2f0;
   --paper: #fbfbfa;
-  --glass: rgba(251, 251, 250, 0.7);
-  --panel: rgba(255, 255, 255, 0.6);
-  --edge: rgba(255, 255, 255, 0.9);
-  --accent: #414140;
+  --glass: rgba(252, 252, 251, 0.34);   /* was 0.7 — see-through, like the reference (9 Nov) */
+  --panel: rgba(255, 255, 255, 0.5);    /* the blocks INSIDE a card stay readable while the card does not */
+  --edge: rgba(255, 255, 255, 0.5);
+  --accent: #0C0C0C;    /* was charcoal #414140; the reference's pills are true black */
   --accent-soft: #ececea;
   --up: #2a8f29;
   --down: #c62f22;
   --star: #f26a2e;
-  --pin: #414140;
-  --radius: 30px;
+  --pin: #0C0C0C;
+  --radius: 24px;       /* was 30; the reference sits tighter */
   --serif: "Newsreader", Georgia, "Times New Roman", serif;   /* money and big numbers only */
   /* Names and the wordmark are Urbanist (9 Nov, Daniel). Newsreader stays on the figures, so a price
      still reads as money rather than as another label. Swap this to var(--serif) to undo. */
@@ -40,6 +40,23 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ---- top nav ---- */
+/* The search and the three switches live in ONE glass capsule (9 Nov, from the reference): one floating
+   object rather than four. The buttons inside lose their own glass so the capsule reads as a single thing;
+   the selected one is true black, as in the reference. */
+.navcap {
+  display: flex; align-items: center; gap: 2px; padding: 5px; min-width: 0;
+  background: var(--glass); border: 1px solid var(--edge); border-radius: 999px;
+  backdrop-filter: blur(46px) saturate(2); -webkit-backdrop-filter: blur(46px) saturate(2);
+  box-shadow: 0 10px 30px rgba(20, 24, 20, 0.12);
+}
+.navcap > *, .navcap .btn, .navcap .search input {
+  background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.navcap .btn:hover { background: rgba(255, 255, 255, 0.55); }
+.navcap .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.navcap .search { min-width: 180px; }
+@media (prefers-reduced-transparency: reduce) {
+  .navcap { backdrop-filter: none; -webkit-backdrop-filter: none; background: #f7f7f5; } }
+
 .topnav {
   flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
   padding: 12px 18px; background: transparent;
@@ -87,10 +104,25 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 
 /* ---- map ---- */
 .map-wrap { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
+/* Out past its coverage OneMap answers with empty pictures, so this background shows through. It stays the
+   pale cream its own land is drawn in: most of what shows through is beside Johor, and a sea-blue background
+   there made Johor look submerged. The cost is a pale patch far out to sea at the widest zoom — tried both
+   ways 9 Nov, this is the lesser of the two. */
 #map { position: absolute; inset: 0; background: #ececea; }
-.leaflet-tile-pane { filter: grayscale(1) brightness(1.08) contrast(0.8); }
+/* The pictures keep a little colour (9 Nov, from the ShotScope reference Daniel chose): parks green,
+   water blue, expressways visible — all of them things the condo score or a warning depends on.
+   Pushed slightly cool so the green agrees with the sage #4C7458 used for the selected area. */
+.leaflet-tile-pane { filter: saturate(0.42) brightness(1.07) contrast(0.88) hue-rotate(-8deg); }
+
 .map-wrap::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 400;
   background: radial-gradient(900px 600px at 60% 40%, rgba(255, 255, 255, 0) 40%, rgba(236, 236, 234, 0.55) 100%); }
+/* With see-through cards the map's own pins and labels showed through the open card and sat among its
+   words. They are hidden where the card covers them (app.js, in declutter, which already measures every
+   label). A CSS mask on the pane was tried first and hid EVERY pin: Leaflet's panes have no size of their
+   own, so a mask in percentages collapses to nothing. */
+/* !important because Leaflet writes opacity straight onto the marker's style attribute, which beats
+   a plain class rule — the class was landing and nothing was happening. */
+.leaflet-marker-icon.under-card { opacity: 0 !important; pointer-events: none; }
 .leaflet-container { font: inherit; }
 .leaflet-control-attribution img { height: 14px; width: 14px; vertical-align: -3px; margin-right: 2px; }
 
@@ -134,8 +166,13 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .card {
   position: absolute; top: 16px; bottom: 16px; z-index: 1000; background: var(--glass);
   border: 1px solid var(--edge); border-radius: var(--radius);
-  backdrop-filter: blur(26px) saturate(1.2); -webkit-backdrop-filter: blur(26px) saturate(1.2);
-  box-shadow: 0 30px 70px -30px rgba(40, 40, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  /* Real glass, not frosted paper (9 Nov). The high saturation is what makes the card take the colour of
+     whatever map is under it, the way the reference does; blur 46 keeps the map's own words unreadable
+     through it so they cannot be mistaken for the card's. */
+  backdrop-filter: blur(46px) saturate(2); -webkit-backdrop-filter: blur(46px) saturate(2);
+  /* a bright top edge and a faint bottom one: glass catches light along its rim */
+  box-shadow: 0 26px 64px -28px rgba(28, 34, 28, 0.42),
+              inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.2);
   display: flex; flex-direction: column; overflow: hidden; transition: transform 250ms ease;
 }
 .card-left { left: 16px; bottom: auto; max-height: calc(100% - 32px); width: min(280px, calc(100% - 32px)); transform: translateX(calc(-100% - 32px)); }
@@ -143,10 +180,10 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .card-right { right: 16px; width: min(430px, calc(100% - 32px)); transform: translateX(calc(100% + 32px)); }
 .card.open { transform: none; }
 .card-head {
-  flex: 0 0 auto; padding: 16px 16px 12px;
+  flex: 0 0 auto; padding: 24px 24px 16px;     /* 9 Nov: measured off the reference, 8pt grid */
   display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
 }
-.card-body { flex: 1 1 auto; overflow-y: auto; padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 12px; counter-reset: sec; }
+.card-body { flex: 1 1 auto; overflow-y: auto; padding: 8px 24px 20px; display: flex; flex-direction: column; gap: 16px; counter-reset: sec; }
 .card-body > * { flex: none; }
 /* section titles: sentence case with a small running number (01, 02 …) like ZIXO */
 .eyebrow { font-size: 15px; font-weight: 600; color: var(--ink); counter-increment: sec; }
@@ -181,7 +218,7 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .empty { font-size: 13px; color: var(--faint); }
 
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.stat { padding: 12px 14px; border: 1px solid var(--edge); border-radius: 20px; background: var(--panel); font-size: 12px; color: var(--muted); }
+.stat { padding: 16px; border: 1px solid var(--edge); border-radius: 16px; background: var(--panel); font-size: 12px; color: var(--muted); }
 .stat strong { display: block; font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.1; color: var(--ink); margin: 2px 0; }
 .stat strong .soon-text, .stat strong .chip { font-family: "Urbanist", "Inter", system-ui, sans-serif; }
 .soon-text { color: var(--faint); font-weight: 500; font-size: 13px; }
@@ -192,7 +229,7 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .rows span:first-child { color: var(--muted); flex: 0 0 auto; }
 .rows span:last-child { text-align: right; }
 
-.box { padding: 14px 16px; border: 1px solid var(--edge); border-radius: 22px; background: var(--panel); display: flex; flex-direction: column; gap: 6px;
+.box { padding: 20px; border: 1px solid var(--edge); border-radius: 16px; background: var(--panel); display: flex; flex-direction: column; gap: 8px;
   font-size: 13px; box-shadow: 0 8px 24px -18px rgba(0, 0, 0, 0.25); }
 .box a { font-weight: 600; }
 
@@ -227,9 +264,9 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .short-selects select:last-child { grid-column: 1 / -1; }
 
 /* condo tabs */
-.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .tabs button {
-  font: inherit; font-size: 13.5px; font-weight: 600; padding: 7px 14px; border: 1px solid var(--edge); border-radius: 999px;
+  font: inherit; font-size: 13.5px; font-weight: 600; padding: 8px 16px; border: 1px solid var(--edge); border-radius: 999px;
   background: var(--panel); cursor: pointer; color: var(--muted);
 }
 .tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -385,13 +422,13 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .age .acol u { position: absolute; left: -4px; right: -4px; border-top: 2px solid var(--ink); }
 
 /* ZIXO pieces: big serif price, thin bars, half-circle gauge, action dock (23 Oct) */
-.hero { text-align: center; align-items: center; gap: 6px; }
+.hero { text-align: center; align-items: center; gap: 8px; }
 .hero .lab { font-family: var(--serif); font-size: 18px; color: var(--muted); }
 .money { font-family: var(--serif); font-size: 48px; font-weight: 400; line-height: 1; color: var(--ink); letter-spacing: -0.01em; }
 .money span { color: #b9b8b2; }
 .pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .pill { display: inline-flex; gap: 4px; align-items: center; border: 1px solid #fff; background: rgba(255, 255, 255, 0.75);
-  border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600; color: var(--ink); }
+  border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; color: var(--ink); }
 .pill.up { color: var(--up); } .pill.down { color: var(--down); }
 .hist { display: flex; align-items: flex-end; gap: 2px; height: 74px; width: 100%; margin-top: 8px; }
 .hist i { flex: 1; background: repeating-linear-gradient(90deg, #d6d5d0 0 2px, transparent 2px 3.5px); }
@@ -405,7 +442,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .gl b { display: block; font-family: var(--serif); font-size: 20px; font-weight: 400; color: var(--ink); }
 .gl b::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #d6d5d0; margin-right: 6px; vertical-align: 3px; }
 .gl .near b::before { background: #38bc37; } .gl .far b::before { background: #f44336; }
-.dock { flex: 0 0 auto; display: flex; flex-wrap: nowrap; gap: 6px; justify-content: center; padding: 10px 12px 14px;
+.dock { flex: 0 0 auto; display: flex; flex-wrap: nowrap; gap: 8px; justify-content: center; padding: 12px 16px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.7); }
 .dock a, .dock button { font: inherit; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 9px 15px; font-size: 13px; white-space: nowrap;
   font-weight: 600; text-decoration: none; color: var(--ink); cursor: pointer;
@@ -512,10 +549,39 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .place-legend button[data-place="futuremrt"] > span { border-style: dashed; }
 .gauge .g .rush { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
 .ring-label { font-size: 10px; color: #414140; font-weight: 600; text-align: center; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
-.place-legend { position: absolute; left: 16px; bottom: 16px; z-index: 900; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-  max-width: min(560px, calc(100% - 480px)); padding: 8px 10px; border-radius: 18px; background: rgba(251, 251, 250, 0.85);
+.place-legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  max-width: min(560px, 100%); padding: 12px; border-radius: 16px; background: rgba(251, 251, 250, 0.85);
   border: 1px solid #fff; box-shadow: 0 10px 30px -18px rgba(40, 40, 40, 0.5); backdrop-filter: blur(10px); }
 .place-legend[hidden] { display: none; }
+
+/* Facts strip over the map (9 Nov, from the reference). Its padding and gaps are the reference's own,
+   scaled to our card: it uses ~40px on a 504px card, we use 24 on 430. */
+/* the shared bottom-left column: facts strip on top, place chips under it */
+.map-bl { position: absolute; left: 16px; bottom: 16px; z-index: 900; display: flex; flex-direction: column;
+  gap: 12px; align-items: flex-start; max-width: calc(100% - 480px); }
+/* strip above the chips, whichever order they were created in; each card is its own height — stretching
+   them to match left the two shorter ones with a lot of dead space */
+.fact-strip { display: flex; gap: 16px; align-items: flex-start; pointer-events: none; order: 1; }
+.place-legend { order: 2; }
+.fact-strip[hidden] { display: none; }
+.fact-c { background: var(--glass); border: 1px solid var(--edge); border-radius: 16px; padding: 20px 24px;
+  backdrop-filter: blur(46px) saturate(2); -webkit-backdrop-filter: blur(46px) saturate(2);
+  box-shadow: 0 16px 40px rgba(20, 24, 20, 0.14); }
+.fact-t { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase;
+  margin-bottom: 16px; }
+.fact-scale { display: grid; grid-template-columns: repeat(3, auto); gap: 8px 20px; }
+.fact-scale b { font-weight: 600; font-size: 12.5px; }
+.fact-scale span { font-size: 16px; font-variant-numeric: tabular-nums; }
+/* the reference's own device: the whole scale shown, the part that does not apply dimmed */
+.fact-scale .off { color: var(--faint); font-weight: 400; }
+.fact-rows { display: flex; flex-direction: column; gap: 8px; }
+.fact-rows div { display: flex; justify-content: space-between; gap: 24px; align-items: baseline;
+  background: var(--panel); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; }
+.fact-rows b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fact-rows b.near { color: var(--up); } .fact-rows b.far { color: var(--down); }
+@media (prefers-reduced-transparency: reduce) {
+  .fact-c { backdrop-filter: none; -webkit-backdrop-filter: none; background: #f7f7f5; } }
+html.m .fact-strip { display: none; }      /* the phone has the sheet instead */
 .place-legend .pl-title { width: 100%; font-size: 12px; font-weight: 600; color: var(--ink); }
 .place-legend button { display: inline-flex; gap: 5px; align-items: center; border: 1px solid #fff; background: rgba(255, 255, 255, 0.7);
   border-radius: 999px; padding: 3px 9px 3px 6px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer; }
@@ -642,8 +708,12 @@ html.m, html.m body { position: fixed; inset: 0; overflow: hidden; overscroll-be
 html.m body { font-size: 15px; }
 html.m .map-wrap { position: fixed; inset: 0; }
 html.m .map-wrap::after { display: none; }
+/* The OneMap / SLA credit has to stay readable — it is the condition for the free pictures. With a
+   see-through sheet it was showing THROUGH the sheet's bottom edge, over "Swipe up for details".
+   The sheet now stops 40px above the tab bar and the credit sits in that gap, on its own. */
 html.m .leaflet-bottom.leaflet-right { bottom: calc(var(--m-bot) + var(--m-tabh) + 16px); }
-html.m .leaflet-control-attribution { font-size: 9px; opacity: 0.7; max-width: 60vw; }
+html.m .leaflet-control-attribution { font-size: 9px; opacity: 0.9; max-width: 68vw;
+  background: rgba(255, 255, 255, 0.78); border-radius: 7px; padding: 1px 6px; }
 html.m .place-legend, html.m .peek, html.m #shortlist, html.m .card.compare { display: none !important; }
 html.m .m-glass, html.m .m-tabs, html.m .m-side button, html.m .m-chip, html.m .topnav {
   background: rgba(251, 251, 250, 0.78); border: 1px solid rgba(255, 255, 255, 0.9);
@@ -688,7 +758,7 @@ html.m.m-full .m-tabs { transform: translateY(calc(100% + 40px)); }
 .m-tabs .m-badge { top: 2px; right: calc(50% - 22px); }
 
 /* the condo / area sheet */
-html.m #detail.card { position: fixed; z-index: 1150; top: auto; left: 8px; right: 8px; bottom: calc(var(--m-bot) + var(--m-tabh) + 18px); width: auto; max-height: 64dvh;
+html.m #detail.card { position: fixed; z-index: 1150; top: auto; left: 8px; right: 8px; bottom: calc(var(--m-bot) + var(--m-tabh) + 48px); width: auto; max-height: 64dvh;
   border-radius: 30px; transform: translateY(calc(100% + var(--m-tabh) + 60px)); transition: transform 280ms cubic-bezier(.2, .8, .2, 1);
   background: rgba(250, 250, 248, 0.86); }
 html.m #detail.card.open { transform: none; }
