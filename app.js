@@ -1446,7 +1446,7 @@
           '<small>' + u.length + ' for sale · ' + range(u.map(function (l) { return l.beds; }), function (b) { return b; }) + ' bed</small>' +
           (c.score && c.score.total != null ? '<small class="sc">Score ' + c.score.total + '</small>' : '') + '</span></button>';
       }
-      return '<button type="button" class="list-item" data-condo="' + esc(c.key) + '"><span><strong>' +
+      return '<button type="button" class="list-item" data-condo="' + esc(c.key) + '"><span><strong class="nm-1" title="' + esc(c.name) + '">' +
         (star ? '<span class="star-mark">★</span> ' : '') + esc(c.name) + '</strong>' + (c.ec ? '<span class="badge">EC</span>' : '') +
         '<small>' + u.length + ' for sale · ' + range(u.map(function (l) { return l.beds; }), function (b) { return b; }) + ' bed · ' +
         range(u.map(function (l) { return l.size; }), function (v) { return v.toLocaleString('en-SG'); }) + ' sqft</small></span>' +
@@ -2252,7 +2252,7 @@
       var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
       var on = S.panel && S.panel.condo === k;
       return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-        '<span><strong>' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small>' +
+        '<span><strong class="nm-1" title="' + esc(c.name) + '">' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small>' +
         (unitFacts(u[0]) ? '<small class="fx">' + unitFacts(u[0]) + '</small>' : '') + '</span>' +
         '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') +
         (unitPsf(u[0]) ? '<small class="psf">' + unitPsf(u[0]) + '</small>' : '') + scoreTag(c) + '</span></span></button>';
@@ -2348,7 +2348,7 @@
     }
     var head = '<tr><th></th>' + cs.map(function (c, i) {
       var a = S.areas[c.area] || {};
-      return '<th><button type="button" class="cname" data-open="' + esc(c.key) + '">' + esc(c.name) + '</button>' +
+      return '<th><button type="button" class="cname" data-open="' + esc(c.key) + '" title="' + esc(c.name) + '">' + esc(c.name) + '</button>' +
         '<div class="csub">' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</div>' +
         '<div class="cscore"><b>' + (facts[i].score != null ? facts[i].score : '—') + '</b><span>score</span></div></th>';
     }).join('') + '</tr>';
@@ -3096,7 +3096,7 @@
   function mItem(c, lead) {
     var a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units, k = sameUnits(u).length;
     return '<button type="button" class="m-item" data-open="' + esc(c.key) + '">' + (lead || '') + mThumb(c) +
-      '<span class="m-mid"><span class="m-nm">' + esc(c.name) + '</span><span class="m-ar">' + esc([a.name, c.district].filter(Boolean).join(' · ')) +
+      '<span class="m-mid"><span class="m-nm nm-1" title="' + esc(c.name) + '">' + esc(c.name) + '</span><span class="m-ar">' + esc([a.name, c.district].filter(Boolean).join(' · ')) +
       ' · ' + k + ' for sale</span>' + (unitFacts(u[0]) ? '<span class="m-fx">' + unitFacts(u[0]) + '</span>' : '') +
       '<span class="m-tags">' + mTags(c) + '</span></span>' +
       '<span class="m-rt"><span class="m-pr">' + money(u[0].price) + '</span>' +
@@ -3180,10 +3180,10 @@
         mItem(S.condos[k], '<span class="m-check' + (on ? ' on' : '') + '" data-msel="' + esc(k) + '" role="checkbox" aria-checked="' + on + '" aria-label="Compare">' + (on ? mIcon('check') : '') + '</span>') + '</div>';
     }).join('') + gone.map(function (k) {
       var g = S.gone[k];
-      return '<div class="m-item gone"><span class="m-mid"><span class="m-nm">' + esc(g.name) + '</span><span class="m-ar">No longer listed · last seen ' + esc(shortDate(g.seen)) + '</span></span>' +
+      return '<div class="m-item gone"><span class="m-mid"><span class="m-nm nm-1" title="' + esc(g.name) + '">' + esc(g.name) + '</span><span class="m-ar">No longer listed · last seen ' + esc(shortDate(g.seen)) + '</span></span>' +
         '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
     }).join('') + lost.map(function (k) {
-      return '<div class="m-item gone"><span class="m-mid"><span class="m-nm">' + esc(keyName(k)) + '</span><span class="m-ar">Not in the current listings</span></span>' +
+      return '<div class="m-item gone"><span class="m-mid"><span class="m-nm nm-1" title="' + esc(keyName(k)) + '">' + esc(keyName(k)) + '</span><span class="m-ar">Not in the current listings</span></span>' +
         '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
     }).join('');
     var total = all.length + gone.length + lost.length;
@@ -3238,7 +3238,7 @@
       var fs = p.map(function (i) { return facts[i]; });
       var top = '<div class="m-cmphead">' + p.map(function (i) {
         var c = cs[i], a = S.areas[c.area] || {};
-        return '<button type="button" class="m-ch" data-open="' + esc(c.key) + '"><span class="m-nm">' + esc(c.name) + '</span><span class="m-ar">' +
+        return '<button type="button" class="m-ch" data-open="' + esc(c.key) + '"><span class="m-nm nm-1" title="' + esc(c.name) + '">' + esc(c.name) + '</span><span class="m-ar">' +
           esc([a.name, c.district].filter(Boolean).join(' · ')) + '</span><span class="m-cs"><b>' + (facts[i].score != null ? facts[i].score : '—') + '</b>score</span></button>';
       }).join('') + '</div>';
       var body = COMPARE_ROWS.map(function (g) {
