@@ -10,6 +10,7 @@
   var S = {
     listings: [], condos: {}, areas: {}, meta: {},
     condoView: (function () { try { return localStorage.getItem('hqCondoView') || 'list'; } catch (e) { return 'list'; } })(),
+    saleSort: (function () { try { return localStorage.getItem('hqSaleSort') || 'price'; } catch (e) { return 'price'; } })(),
     shortlist: [], shortAdded: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
     shortView: { q: '', area: '', beds: 0, sort: 'added' },
     eview: 'all',      // ethnic groups: 'all' residents or 'private' (condo & landed estimate)
@@ -1718,8 +1719,38 @@
     return { pct: Math.round(100 * (l.psf - med) / med), psf: med, n: basis.length, kind: kind };
   }
 
+  // How the For sale list is ordered (9 Nov, Daniel asked for a sort order). Remembered between condos.
+  var SALE_SORTS = [['price', 'Cheapest'], ['psf', 'Lowest psf'], ['size', 'Biggest'], ['beds', 'Most bedrooms']];
+  function sortGroups(groups) {
+    var how = S.saleSort, g = groups.slice();
+    var num = function (v) { return typeof v === 'number' ? v : 9e9; };
+    if (how === 'psf') g.sort(function (a, b) { return num(a[0].psf) - num(b[0].psf); });
+    else if (how === 'size') g.sort(function (a, b) { return (b[0].size || 0) - (a[0].size || 0); });
+    else if (how === 'beds') g.sort(function (a, b) { return (b[0].beds || 0) - (a[0].beds || 0) || num(a[0].price) - num(b[0].price); });
+    else g.sort(function (a, b) { return num(a[0].price) - num(b[0].price); });
+    return g;
+  }
+  // Which sites a price is on. Several postings at the same beds+size+price are usually the same unit
+  // listed by more than one agent — but in a new launch they are different flats of the same layout,
+  // so the words say what is certain (how many listings) and never claim they are one home.
+  function postedLine(g) {
+    var sites = [], n = g.length;
+    g.forEach(function (l) { if (sites.indexOf(l.source) < 0) sites.push(l.source); });
+    var where = sites.join(' + ');
+    if (n === 1) return esc(where);
+    return '<span class="posted">' + n + ' listings</span> on ' + esc(where) +
+      tip('Same bedrooms, size and price on ' + sites.join(' and ') + '. In a resale condo that is usually one '
+        + 'home posted by several agents; in a new launch it is several flats of the same layout. HomeQuest '
+        + 'cannot tell which, so it only counts the listings.');
+  }
+
   function saleTab(c, groups) {
-    return '<div class="head-row"><span class="eyebrow">Units for sale' + tip('Each asking price is compared with URA actual sales in this condo over the past 2 years — similar size (±15%) where there are at least 3 such sales, otherwise all sizes. Red = asking above recent sales, green = below.') + '</span></div>' +
+    groups = sortGroups(groups);
+    return '<div class="sale-sort">' + SALE_SORTS.map(function (x) {
+      return '<button type="button" class="m-chip2" data-ssort="' + x[0] + '" aria-pressed="' +
+        (S.saleSort === x[0]) + '">' + x[1] + '</button>';
+    }).join('') + '</div>' +
+      '<div class="head-row"><span class="eyebrow">Units for sale' + tip('Each asking price is compared with URA actual sales in this condo over the past 2 years — similar size (±15%) where there are at least 3 such sales, otherwise all sizes. Red = asking above recent sales, green = below.') + '</span></div>' +
       groups.map(function (g) {
         var l = g[0], v = vsUra(l, c), lvl = (g.filter(function (x) { return x.floor; })[0] || {}).floor;
         var chip = v ? '<span class="chip ' + (v.pct > 5 ? 'up' : (v.pct < -5 ? 'down' : 'flat')) + '">' + (v.pct > 0 ? '+' : '') + v.pct +
@@ -1727,10 +1758,10 @@
           : '<span class="hint">' + (c.ura ? 'Not enough recent URA sales to compare.' : 'No URA sales to compare with.') + '</span>';
         var floor = l.floorplan ? '<a href="' + esc(l.floorplan) + '" target="_blank" rel="noopener">Floor plan →</a>'
           : '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Floor plan on ' + esc(l.source) + ' →</a>';
-        return '<div class="box unit"><div class="head-row"><strong>' + bedsText(l.beds) + (l.baths ? ' · ' + l.baths + ' bath' : '') + ' · ' +
+        return '<div class="box unit" data-unit="' + esc(groupKey(g)) + '"><div class="head-row"><strong>' + bedsText(l.beds) + (l.baths ? ' · ' + l.baths + ' bath' : '') + ' · ' +
           (l.size ? l.size.toLocaleString('en-SG') + ' sqft' : '—') + '</strong><span class="price">' + full(l.price) + '</span></div>' +
-          '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' + esc(l.source) + (l.source === 'PropertyGuru' && daysAgo(l.scrapedOn) > STALE_DAYS ? ', seen ' + esc(shortDate(l.scrapedOn)) + ' — may be sold (not updated)' : '') +
-            (g.length > 1 ? ' · posted ' + g.length + '×' : '') + '</span>' + (g.length > 1 ? tip('Posted ' + g.length + ' times with the same beds, size and price — most likely the same unit listed by different agents.') : '') + '<span>' + '</span></div>' +
+          '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' +
+            postedLine(g) + (l.source === 'PropertyGuru' && daysAgo(l.scrapedOn) > STALE_DAYS ? ', seen ' + esc(shortDate(l.scrapedOn)) + ' — may be sold (not updated)' : '') + '</span></div>' +
           '<div class="vs">' + chip + priceChip(g) + '</div>' +
           '<div class="hint">' + onMarket(g) + '</div>' +
           '<div class="links">' + floor + '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Open listing on ' + esc(l.source) + ' →</a></div></div>';
@@ -1752,6 +1783,13 @@
       if (first) strip.scrollBy({ left: (t.dataset.action === 'gnext' ? 1 : -1) * (first.offsetWidth + 8), behavior: 'smooth' });
     }
     else if (t.dataset.eview) { S.eview = t.dataset.eview; var y3 = $('detail').querySelector('.card-body').scrollTop; renderPanel(); $('detail').querySelector('.card-body').scrollTop = y3; }
+    else if (t.dataset.ssort) {
+      S.saleSort = t.dataset.ssort;
+      try { localStorage.setItem('hqSaleSort', S.saleSort); } catch (e5) { /* not remembered */ }
+      var yS = $('detail').querySelector('.card-body').scrollTop;
+      renderPanel();
+      $('detail').querySelector('.card-body').scrollTop = yS;
+    }
     else if (t.dataset.view) {
       S.condoView = t.dataset.view;
       try { localStorage.setItem('hqCondoView', S.condoView); } catch (e2) { /* private window: just don't remember */ }
@@ -1780,6 +1818,8 @@
   }
 
   // Listings with the same beds, size and price are usually one unit posted by several agents
+  function groupKey(g) { var l = g[0]; return [l.beds, l.size, l.price].join('|'); }
+
   function sameUnits(units) {
     var seen = {}, out = [];
     units.forEach(function (l) {
@@ -1788,6 +1828,61 @@
       seen[k].push(l);
     });
     return out;
+  }
+
+  // Press and hold a unit (or right-click on the laptop) to choose which site to open — Daniel asked
+  // for the gesture, and the "on 99.co + PropertyGuru" chip does the same thing, so it is never the
+  // only way in. The menu opens the CHEAPER source first (Daniel, 9 Nov).
+  function unitMenu(c, key) {
+    var units = shown(c).length ? shown(c) : c.units;
+    var g = sameUnits(units).filter(function (x) { return groupKey(x) === key; })[0];
+    if (!g) return;
+    var best = {};
+    g.slice().sort(function (a, b) { return (a.price || 9e9) - (b.price || 9e9); })
+      .forEach(function (l) { if (!best[l.source]) best[l.source] = l; });
+    var sites = Object.keys(best).sort(function (a, b) { return best[a].price - best[b].price; });
+    var el = $('unitMenu') || (function () {
+      var d = document.createElement('div');
+      d.id = 'unitMenu'; d.className = 'unit-menu'; d.hidden = true;
+      document.body.appendChild(d);
+      d.addEventListener('click', function (e) { if (e.target === d) closeUnitMenu(); });
+      return d;
+    })();
+    var l0 = g[0];
+    el.innerHTML = '<div class="um-card"><div class="um-head"><strong>' + bedsText(l0.beds) + ' · ' +
+      (l0.size ? l0.size.toLocaleString('en-SG') + ' sqft' : '—') + '</strong><small>' + full(l0.psf) + ' psf' +
+      (g.length > 1 ? ' · ' + g.length + ' listings at this price' : '') + '</small></div>' +
+      sites.map(function (site) {
+        return '<a href="' + esc(best[site].url) + '" target="_blank" rel="noopener">Open on ' + esc(site) +
+          '<i>' + money(best[site].price) + '</i></a>';
+      }).join('') +
+      (l0.floorplan ? '<a href="' + esc(l0.floorplan) + '" target="_blank" rel="noopener">Floor plan<i></i></a>' : '') +
+      '</div>';
+    el.hidden = false;
+  }
+  function closeUnitMenu() { var el = $('unitMenu'); if (el) el.hidden = true; }
+
+  function setupUnitHold() {
+    var timer = null, moved = false, key = null;
+    function start(e) {
+      var box = e.target.closest('.unit[data-unit]');
+      if (!box || e.target.closest('a')) return;
+      key = box.dataset.unit; moved = false;
+      timer = setTimeout(function () {
+        timer = null;
+        if (!moved && S.panel && S.panel.condo) unitMenu(S.condos[S.panel.condo], key);
+      }, 450);
+    }
+    function stop() { if (timer) { clearTimeout(timer); timer = null; } }
+    document.addEventListener('pointerdown', start);
+    document.addEventListener('pointermove', function () { moved = true; });
+    document.addEventListener('pointerup', stop);
+    document.addEventListener('pointercancel', stop);
+    document.addEventListener('contextmenu', function (e) {          // laptop: right-click
+      var box = e.target.closest('.unit[data-unit]');
+      if (box && S.panel && S.panel.condo) { e.preventDefault(); unitMenu(S.condos[S.panel.condo], box.dataset.unit); }
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeUnitMenu(); });
   }
 
   // ---- Google photos, rating and reviews (fetched when a condo opens; see google_places.py) ----
@@ -3127,6 +3222,7 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.compare) closeCompare(); });
     $('detail').addEventListener('click', onPanelClick);
     setupPlaceLegend();
+    setupUnitHold();
     $('detail').addEventListener('scroll', function (e) { if (e.target.classList && e.target.classList.contains('gphotos')) photoStripMoved(e.target); }, true);
     $('detail').addEventListener('input', function (e) {
       if (e.target.id === 'areaQ' && S.panel) { S.panel.q = e.target.value.trim(); $('areaList').innerHTML = areaCondoList(S.panel.area); }

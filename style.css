@@ -1,5 +1,9 @@
 /* Look: "ZIXO" style (frosted pearl glass, charcoal, serif headlines) — agreed with Daniel 23 Oct.
-   Fonts: Inter (interface) + Newsreader (names and prices), saved in vendor/fonts (SIL Open Font License). */
+   Fonts: Urbanist (interface, 9 Nov) + Newsreader (names and prices), saved in vendor/fonts (SIL Open Font License).
+   Inter stays as the fallback behind Urbanist. */
+/* Urbanist replaces Inter for the interface (9 Nov, Daniel, from the Payrix reference). Newsreader stays
+   for names and big prices — the serif is the ZIXO look and he kept it. Inter is still here as a fallback. */
+@font-face { font-family: "Urbanist"; src: url(vendor/fonts/urbanist-latin.woff2) format("woff2"); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: "Inter"; src: url(vendor/fonts/inter-latin.woff2) format("woff2"); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: "Newsreader"; src: url(vendor/fonts/newsreader-latin.woff2) format("woff2"); font-weight: 300 500; font-display: swap; }
 
@@ -20,8 +24,11 @@
   --star: #f26a2e;
   --pin: #414140;
   --radius: 30px;
-  --serif: "Newsreader", Georgia, "Times New Roman", serif;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;   /* money and big numbers only */
+  /* Names and the wordmark are Urbanist (9 Nov, Daniel). Newsreader stays on the figures, so a price
+     still reads as money rather than as another label. Swap this to var(--serif) to undo. */
+  --name: "Urbanist", "Inter", system-ui, -apple-system, sans-serif;
+  font-family: "Urbanist", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--ink);
 }
 
@@ -38,7 +45,7 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
   padding: 12px 18px; background: transparent;
   position: relative; z-index: 1001;
 }
-.brand { font-family: var(--serif); font-size: 26px; font-weight: 400; padding: 0 6px; }
+.brand { font-family: var(--name); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; padding: 0 6px; }
 .btn {
   font: inherit; font-size: 13px; font-weight: 500; min-height: 36px; padding: 0 14px; border-radius: 999px;
   border: 1px solid var(--edge); background: var(--panel); color: var(--ink); cursor: pointer;
@@ -90,7 +97,7 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 /* area labels = districts only (option B, 28 Oct): the map pictures already print the area names */
 .area-label {
   pointer-events: none; white-space: nowrap; text-align: center; color: var(--accent);
-  font-family: "Inter", system-ui, sans-serif; font-size: 12px; font-weight: 700; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+  font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 12px; font-weight: 700; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
   transform: translate(-50%, -50%); width: max-content;
 }
 .area-label small { font-size: 11px; font-weight: 500; color: var(--muted); }
@@ -149,11 +156,11 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
   border: 1px solid var(--edge); background: var(--panel); cursor: pointer; color: var(--ink);
 }
 .icon-btn:hover { background: #fff; }
-.title { font-family: var(--serif); font-size: 36px; font-weight: 400; line-height: 1.05; }
+.title { font-family: var(--name); font-size: 33px; font-weight: 600; line-height: 1.06; letter-spacing: -0.025em; }
 .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .badge {
   display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
-  background: var(--accent); color: #fff; vertical-align: 8px; margin-left: 8px; font-family: "Inter", system-ui, sans-serif;
+  background: var(--accent); color: #fff; vertical-align: 8px; margin-left: 8px; font-family: "Urbanist", "Inter", system-ui, sans-serif;
 }
 .head-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .head-col { display: flex; flex-direction: column; gap: 10px; width: 100%; }
@@ -169,14 +176,14 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .list-item small.fx { color: var(--ink); font-variant-numeric: tabular-nums; }
 .list-item .price small.psf { color: var(--muted); font-variant-numeric: tabular-nums; }
 .list-item .price { font-family: var(--serif); font-size: 20px; font-weight: 400; white-space: nowrap; text-align: right; }
-.list-item .price small { font-family: "Inter", system-ui, sans-serif; font-size: 11px; }
+.list-item .price small { font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 11px; }
 .star-mark { color: var(--star); }
 .empty { font-size: 13px; color: var(--faint); }
 
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .stat { padding: 12px 14px; border: 1px solid var(--edge); border-radius: 20px; background: var(--panel); font-size: 12px; color: var(--muted); }
 .stat strong { display: block; font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.1; color: var(--ink); margin: 2px 0; }
-.stat strong .soon-text, .stat strong .chip { font-family: "Inter", system-ui, sans-serif; }
+.stat strong .soon-text, .stat strong .chip { font-family: "Urbanist", "Inter", system-ui, sans-serif; }
 .soon-text { color: var(--faint); font-weight: 500; font-size: 13px; }
 
 .rows { display: flex; flex-direction: column; font-size: 13px; }
@@ -328,7 +335,7 @@ ul.plain { margin: 0; padding-left: 18px; display: flex; flex-direction: column;
 .gcred { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 10px; color: #fff; text-align: left;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.6)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gload { display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--faint); cursor: default; }
-.g-rating { font-family: "Inter", system-ui, sans-serif; font-size: 14px; font-weight: 700; color: var(--star); margin-left: 8px; white-space: nowrap; vertical-align: 8px; }
+.g-rating { font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 14px; font-weight: 700; color: var(--star); margin-left: 8px; white-space: nowrap; vertical-align: 8px; }
 .g-rating a { color: inherit; text-decoration: none; }
 .g-rating small { font-weight: 500; color: var(--muted); }
 .greview { display: flex; flex-direction: column; gap: 3px; padding: 8px 0; border-bottom: 1px solid var(--soft); font-size: 13px; }
@@ -450,9 +457,9 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .score-legend small { color: var(--faint); font-size: 11px; }
 .score-legend .sv { font-weight: 600; color: var(--ink); }
 .big-num { font-family: var(--serif); font-size: 34px; font-weight: 400; line-height: 1.1; }
-.big-num span { font-family: "Inter", system-ui, sans-serif; font-size: 13px; color: var(--muted); }
+.big-num span { font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 13px; color: var(--muted); }
 .pills.left { justify-content: flex-start; }
-.list-item .price .sc { display: block; font-family: "Inter", system-ui, sans-serif; font-size: 11px; color: #2a9a2a; font-weight: 600; }
+.list-item .price .sc { display: block; font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 11px; color: #2a9a2a; font-weight: 600; }
 .chip.warn { background: #fff1e0; color: #b45a00; }
 .ok-text { color: var(--up); }
 .box.alert { background: rgba(255, 241, 224, 0.85); border-color: #ffd9b0; }
@@ -474,7 +481,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .thumb-body { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px; }
 .thumb-body strong { font-size: 13px; line-height: 1.25; }
 .thumb-price { font-family: var(--serif); font-size: 19px; }
-.thumb-price small { font-family: "Inter", system-ui, sans-serif; font-size: 11px; color: var(--muted); }
+.thumb-price small { font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 11px; color: var(--muted); }
 .thumb-body > small { color: var(--muted); font-size: 11.5px; }
 .thumb-body .sc { color: #2a9a2a; font-weight: 600; }
 /* No scroll bars on the cards (option A, 24 Oct): scrolling still works; a soft fade at the bottom hints there's more */
@@ -614,7 +621,7 @@ table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font
 .cmptable th:first-child, .cmptable td.lab { position: sticky; left: 0; background: #f8f8f6; z-index: 1; color: var(--muted); min-width: 170px; padding-left: 16px; }
 .cmptable th:first-child { z-index: 3; }
 .cmptable .cname { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: var(--ink);
-  font-family: var(--serif); font-size: 21px; font-weight: 400; line-height: 1.1; }
+  font-family: var(--name); font-size: 19px; font-weight: 600; line-height: 1.14; letter-spacing: -0.02em; }
 .cmptable .cname:hover { text-decoration: underline; text-decoration-color: var(--faint); }
 .cmptable .csub { font-size: 12px; color: var(--muted); font-weight: 400; margin-top: 2px; }
 .cmptable .cscore { display: flex; align-items: baseline; gap: 5px; margin-top: 8px; }
@@ -644,7 +651,7 @@ html.m .m-glass, html.m .m-tabs, html.m .m-side button, html.m .m-chip, html.m .
   box-shadow: 0 12px 30px -14px rgba(30, 30, 30, 0.45); }
 .mi { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .m-badge { position: absolute; top: -4px; right: -4px; min-width: 19px; height: 19px; border-radius: 10px; padding: 0 5px; background: var(--star);
-  color: #fff; font: 700 11px/15px Inter, system-ui, sans-serif; border: 2px solid #fff; display: grid; place-items: center; }
+  color: #fff; font: 700 11px/15px Urbanist, Inter, system-ui, sans-serif; border: 2px solid #fff; display: grid; place-items: center; }
 .m-badge[hidden] { display: none; }
 
 /* search bar = the old top bar, as one floating capsule */
@@ -665,7 +672,7 @@ html.m [data-pop=popMore] { width: 44px; height: 44px; min-height: 44px; padding
 html.m [data-pop=popMore].active { background: var(--accent); box-shadow: none; }
 html.m [data-pop=popMore] .mi { width: 19px; height: 19px; }
 .m-chips { position: fixed; z-index: 1050; top: calc(var(--m-top) + 72px); left: 12px; right: 74px; display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
-.m-chip { pointer-events: auto; height: 34px; border-radius: 17px; padding: 0 13px; display: inline-flex; align-items: center; gap: 7px; font: 600 13px Inter, system-ui, sans-serif;
+.m-chip { pointer-events: auto; height: 34px; border-radius: 17px; padding: 0 13px; display: inline-flex; align-items: center; gap: 7px; font: 600 13px Urbanist, Inter, system-ui, sans-serif;
   color: var(--ink); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .m-dot { width: 8px; height: 8px; border-radius: 4px; background: #38BC37; } .m-dot.warn { background: #f2a23a; }
 .m-side { position: fixed; z-index: 1050; right: 12px; top: calc(var(--m-top) + 74px); display: flex; flex-direction: column; gap: 10px; }
@@ -676,7 +683,7 @@ html.m [data-pop=popMore] .mi { width: 19px; height: 19px; }
   transition: transform 250ms ease; }
 html.m.m-full .m-tabs { transform: translateY(calc(100% + 40px)); }
 .m-tabs button { flex: 1; position: relative; border: 0; background: none; border-radius: 26px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; font: 600 11px Inter, system-ui, sans-serif; color: var(--muted); padding: 0; }
+  gap: 3px; font: 600 11px Urbanist, Inter, system-ui, sans-serif; color: var(--muted); padding: 0; }
 .m-tabs button[aria-pressed="true"] { background: rgba(65, 65, 64, 0.1); color: var(--ink); }
 .m-tabs .m-badge { top: 2px; right: calc(50% - 22px); }
 
@@ -706,7 +713,7 @@ html.m #detail .dock button { flex: 1.3 1 auto; }
 html.m .tip-i { width: 20px; height: 20px; font-size: 12px; }   /* centred by the flex rule, not a px line-height */
 html.m .tooltip { max-width: calc(100vw - 32px); font-size: 14px; }
 .m-onmap { position: absolute; top: 14px; left: 16px; z-index: 2; height: 34px; border-radius: 17px; border: 1px solid var(--line); background: #fff; display: inline-flex;
-  align-items: center; gap: 5px; padding: 0 12px 0 9px; font: 600 13px Inter, system-ui, sans-serif; color: var(--ink); }
+  align-items: center; gap: 5px; padding: 0 12px 0 9px; font: 600 13px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); }
 .m-onmap .mi { width: 16px; height: 16px; }
 html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 
@@ -717,7 +724,7 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-x { flex: none; width: 36px; height: 36px; border-radius: 18px; border: 0; background: rgba(0, 0, 0, 0.06); color: var(--muted); display: grid; place-items: center; padding: 0; }
 .m-x .mi { width: 17px; height: 17px; }
 .m-price { font-family: var(--serif); font-size: 32px; line-height: 1; }
-.m-price small { font-family: Inter, system-ui, sans-serif; font-size: 13px; color: var(--muted); font-weight: 500; margin-right: 4px; }
+.m-price small { font-family: Urbanist, Inter, system-ui, sans-serif; font-size: 13px; color: var(--muted); font-weight: 500; margin-right: 4px; }
 .m-ring { position: relative; width: 58px; height: 58px; flex: none; display: grid; place-items: center; }
 .m-ring svg { position: absolute; inset: 0; width: 58px; height: 58px; }
 .m-ring b { font-family: var(--serif); font-weight: 400; font-size: 22px; line-height: 1; margin-top: -6px; }
@@ -728,7 +735,7 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-fact .mi { width: 16px; height: 16px; }
 .m-fact.good { color: var(--up); } .m-fact.warn { color: #b45a00; background: #fff1e0; border-color: #ffe2c2; } .m-fact.bad { color: var(--down); background: #fde8e6; border-color: #fbd3cf; }
 .m-actions { display: flex; gap: 10px; margin-top: 14px; }
-.m-btn { flex: 1; height: 50px; border-radius: 25px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font: 600 15.5px Inter, system-ui, sans-serif;
+.m-btn { flex: 1; height: 50px; border-radius: 25px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font: 600 15.5px Urbanist, Inter, system-ui, sans-serif;
   color: var(--ink); text-decoration: none; background: #fff; border: 1px solid #fff; box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.35); white-space: nowrap; }
 .m-btn.dark { background: var(--accent); color: #fff; border-color: var(--accent); }
 .m-btn .mi { width: 17px; height: 17px; }
@@ -750,30 +757,54 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-lt.shrunk h1 { font-size: 21px; margin-top: 0; }
 .m-lt.shrunk .m-meta, .m-lt.shrunk .m-field { display: none; }
 .m-lt.shrunk .m-round { margin-top: 0; }
-.m-lt h1 { font-family: var(--serif); font-weight: 400; font-size: 38px; margin: 6px 0 0; letter-spacing: -0.3px; }
+.m-lt h1 { font-family: var(--name); font-weight: 700; font-size: 34px; margin: 6px 0 0; letter-spacing: -0.03em; }
 .m-meta { color: var(--muted); font-size: 14px; margin-top: 2px; }
 .m-round { width: 44px; height: 44px; border-radius: 22px; border: 0; display: grid; place-items: center; position: relative; margin-top: 10px; padding: 0; }
 .m-round.dark { background: var(--accent); color: #fff; }
 .m-round .mi { width: 19px; height: 19px; }
 .m-field { height: 46px; border-radius: 23px; background: rgba(0, 0, 0, 0.055); display: flex; align-items: center; gap: 8px; padding: 0 14px; color: var(--muted); margin-top: 12px; }
 .m-field .mi { width: 18px; height: 18px; }
-.m-field input { flex: 1; min-width: 0; border: 0; background: none; font: 400 16px Inter, system-ui, sans-serif; color: var(--ink); outline: none; -webkit-appearance: none; }
+.m-field input { flex: 1; min-width: 0; border: 0; background: none; font: 400 16px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); outline: none; -webkit-appearance: none; }
 .m-chiprow { display: flex; gap: 8px; margin: 12px -16px 0; padding: 0 16px 2px; overflow-x: auto; scrollbar-width: none; }
 .m-chiprow::-webkit-scrollbar { display: none; }
-.m-chip2 { flex: none; height: 36px; border-radius: 18px; padding: 0 14px; border: 1px solid var(--line); background: #fff; font: 500 14px Inter, system-ui, sans-serif; color: var(--ink); }
+.m-chip2 { flex: none; height: 36px; border-radius: 18px; padding: 0 14px; border: 1px solid var(--line); background: #fff; font: 500 14px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); }
 .m-chip2[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .m-sep { flex: none; width: 1px; background: var(--line); margin: 6px 2px; }
 .m-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+/* For sale: sort buttons, which-site chip, and the press-and-hold menu (9 Nov) */
+.sale-sort { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 12px; padding: 0 2px 2px; }
+.sale-sort::-webkit-scrollbar { display: none; }
+.sale-sort .m-chip2 { flex: none; height: 32px; font-size: 13px; }
+.unit .posted { color: var(--ink); font-weight: 500; }
+.unit-menu { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center;
+  background: rgba(20, 20, 19, 0.34); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.unit-menu[hidden] { display: none; }
+.um-card { width: 260px; max-width: calc(100vw - 48px); border-radius: 18px; overflow: hidden;
+  background: rgba(253, 253, 252, 0.97); box-shadow: 0 22px 48px -16px rgba(0, 0, 0, 0.5);
+  animation: umIn .2s cubic-bezier(.32, .72, 0, 1); }
+@keyframes umIn { from { transform: scale(.94); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+.um-head { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.um-head strong { display: block; font-size: 14px; font-weight: 500; }
+.um-head small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.um-card a { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 13px 14px; font-size: 14px; color: var(--ink); text-decoration: none; }
+.um-card a + a { border-top: 1px solid var(--line); }
+.um-card a:active { background: rgba(0, 0, 0, 0.05); }
+.um-card a i { font-style: normal; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .um-card { animation: none } }
+@media (prefers-reduced-transparency: reduce) { .unit-menu { backdrop-filter: none; background: rgba(20,20,19,.5) }
+  .um-card { background: #fff } }
+
 .m-group { background: #fff; border-radius: 22px; overflow: hidden; box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.4); }
 .m-group .m-item, .m-group .m-swipe { border-radius: 0; box-shadow: none; }
 .m-group > * + * { border-top: 1px solid var(--line); }
-.m-ghead { font: 600 11px Inter, system-ui, sans-serif; letter-spacing: 0.07em; text-transform: uppercase;
+.m-ghead { font: 600 11px Urbanist, Inter, system-ui, sans-serif; letter-spacing: 0.07em; text-transform: uppercase;
   color: var(--muted); margin: 6px 0 -4px 4px; }
 .m-item { width: 100%; display: flex; gap: 12px; align-items: center; text-align: left; background: #fff; border: 0; border-radius: 22px; padding: 10px 14px 10px 10px;
   box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.4); font: inherit; color: var(--ink); position: relative; transition: transform 200ms ease; }
 .m-item img, .m-noimg { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; flex: none; background: #ecebe8; }
 .m-item .m-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; margin: 0; align-items: stretch; }
-.m-nm { font-family: var(--serif); font-size: 20px; line-height: 1.12; }
+.m-nm { font-family: var(--name); font-size: 18px; font-weight: 600; line-height: 1.16; letter-spacing: -0.015em; }
 .m-ar { color: var(--muted); font-size: 13px; margin-top: 3px; }
 /* beds / size / psf of the unit whose price is shown — the numbers you compare on (7 Nov) */
 .m-fx { color: var(--ink); font-size: 13px; margin-top: 3px; font-variant-numeric: tabular-nums; }
@@ -786,16 +817,16 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-pr { font-family: var(--serif); font-size: 21px; }
 .m-sc { font-size: 12px; font-weight: 700; color: var(--up); margin-top: 2px; }
 .m-item.gone { opacity: 0.6; }
-.m-more { width: 100%; height: 48px; border-radius: 24px; border: 1px solid var(--line); background: #fff; font: 600 15px Inter, system-ui, sans-serif; color: var(--ink); }
+.m-more { width: 100%; height: 48px; border-radius: 24px; border: 1px solid var(--line); background: #fff; font: 600 15px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); }
 .m-empty { text-align: center; color: var(--muted); padding: 40px 10px; font-size: 15px; line-height: 1.5; }
 .m-check { flex: none; width: 28px; height: 28px; border-radius: 14px; border: 2px solid var(--faint); display: grid; place-items: center; color: #fff; }
 .m-check.on { background: var(--accent); border-color: var(--accent); }
 .m-check .mi { width: 16px; height: 16px; }
 .m-swipe { position: relative; }
-.m-swipe .m-del { position: absolute; right: 0; top: 0; bottom: 0; width: 88px; border: 0; border-radius: 22px; background: var(--down); color: #fff; font: 600 14px Inter, system-ui, sans-serif; }
+.m-swipe .m-del { position: absolute; right: 0; top: 0; bottom: 0; width: 88px; border: 0; border-radius: 22px; background: var(--down); color: #fff; font: 600 14px Urbanist, Inter, system-ui, sans-serif; }
 .m-swipe.open .m-item { transform: translateX(-96px); }
 .m-fab { position: fixed; z-index: 1150; left: 50%; transform: translateX(-50%); bottom: calc(var(--m-bot) + var(--m-tabh) + 24px); height: 52px; border-radius: 26px; border: 0;
-  background: var(--accent); color: #fff; padding: 0 26px; display: inline-flex; align-items: center; gap: 8px; font: 600 16px Inter, system-ui, sans-serif;
+  background: var(--accent); color: #fff; padding: 0 26px; display: inline-flex; align-items: center; gap: 8px; font: 600 16px Urbanist, Inter, system-ui, sans-serif;
   box-shadow: 0 12px 26px -12px rgba(0, 0, 0, 0.5); }
 .m-fab .mi { width: 18px; height: 18px; }
 
@@ -853,12 +884,12 @@ html.m #popMore .fshow { width: 100%; height: 54px; font-size: 16.5px; }
 .m-layers .m-row { align-items: center; margin-top: 8px; } .m-layers strong { font-size: 17px; }
 .m-lgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
 .m-lgrid button { height: 82px; border-radius: 18px; border: 1px solid var(--line); background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; font: 600 12.5px Inter, system-ui, sans-serif; color: var(--muted); padding: 0 4px; }
+  gap: 6px; font: 600 12.5px Urbanist, Inter, system-ui, sans-serif; color: var(--muted); padding: 0 4px; }
 .m-lgrid button[aria-pressed="true"] { border: 2px solid var(--accent); color: var(--ink); }
 .m-lgrid button span { width: 32px; height: 32px; border-radius: 16px; background: var(--c); color: #fff; display: grid; place-items: center; }
 .m-lgrid button span svg { width: 17px; height: 17px; }
 .m-toast { position: fixed; z-index: 1400; left: 50%; transform: translateX(-50%); top: calc(var(--m-top) + 76px); max-width: calc(100vw - 32px); padding: 10px 16px;
-  border-radius: 20px; background: var(--accent); color: #fff; font: 500 14px Inter, system-ui, sans-serif; text-align: center; box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.5); }
+  border-radius: 20px; background: var(--accent); color: #fff; font: 500 14px Urbanist, Inter, system-ui, sans-serif; text-align: center; box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.5); }
 .m-toast[hidden] { display: none; }
 html.m .wide-only { display: none; }
 
@@ -868,7 +899,7 @@ html.m .wide-only { display: none; }
 .pin.bcheck { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #f2a23a !important; }
 .pin { position: relative; }
 .cluster.below { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #46B035; position: relative; }
-.bpct { position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); background: #2a8f29; color: #fff; font: 700 11px/1.5 Inter, system-ui, sans-serif;
+.bpct { position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); background: #2a8f29; color: #fff; font: 700 11px/1.5 Urbanist, Inter, system-ui, sans-serif;
   padding: 0 6px; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); pointer-events: none; }
 .bpct.q { background: #e08a12; }
 .pill.warnpill { background: #fff1e0; color: #b45a00; }
@@ -879,16 +910,16 @@ html.m .wide-only { display: none; }
 #btnBelow[aria-pressed="true"] { background: #2a8f29; border-color: #2a8f29; }
 #map.pricemap .area-label { display: none; }
 .pm-lab { display: inline-block; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.92); border-radius: 999px; padding: 1px 7px;
-  font: 700 11px/1.6 Inter, system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
+  font: 700 11px/1.6 Urbanist, Inter, system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
 .pm-lab.g { color: #2a8f29; } .pm-lab.r { color: #c62f22; } .pm-lab.n { color: var(--muted); }
 .pm-card { position: fixed; z-index: 1001; left: 50%; transform: translateX(-50%); top: 72px; width: min(360px, calc(100vw - 16px)); border-radius: 26px; padding: 12px 16px 12px;
   background: rgba(250, 250, 248, 0.94); border: 1px solid #fff; box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); font-family: Inter, system-ui, sans-serif; }
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); font-family: Urbanist, Inter, system-ui, sans-serif; }
 .pm-card[hidden] { display: none; }
 .pm-t { font-weight: 700; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
 .pm-s { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
 .pm-seg { display: flex; background: rgba(0, 0, 0, 0.05); border-radius: 20px; padding: 3px; margin-top: 10px; }
-.pm-seg button { flex: 1; height: 34px; border: 0; border-radius: 17px; background: none; font: 600 13.5px Inter, system-ui, sans-serif; color: var(--muted); }
+.pm-seg button { flex: 1; height: 34px; border: 0; border-radius: 17px; background: none; font: 600 13.5px Urbanist, Inter, system-ui, sans-serif; color: var(--muted); }
 .pm-seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.25); }
 .pm-scale { display: flex; gap: 3px; margin-top: 12px; } .pm-scale i { flex: 1; height: 10px; border-radius: 3px; }
 .pm-ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }

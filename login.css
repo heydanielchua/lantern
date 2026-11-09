@@ -5,7 +5,7 @@
 .login-card { width: min(380px, 100%); box-sizing: border-box; padding: 28px 26px 20px; border-radius: 28px;
   background: rgba(255, 255, 255, 0.72); border: 1px solid #fff; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); display: flex; flex-direction: column; gap: 14px;
-  font-family: Inter, system-ui, sans-serif; color: #414140; }
+  font-family: Urbanist, Inter, system-ui, sans-serif; color: #414140; }
 .login-brand { font-family: Newsreader, Georgia, serif; font-size: 30px; line-height: 1; }
 .login-sub { margin: -6px 0 4px; font-size: 12.5px; color: #8a8985; }
 .login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; }
