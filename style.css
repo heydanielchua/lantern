@@ -36,6 +36,24 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Dragging anywhere over a card used to sweep a text selection across the page (Daniel, 10 Nov: "why when
+   i drag. i keep accidentally highlight the whole page"). Leaflet already protects the map itself, but our
+   cards sit outside its container, so nothing stopped it — there was not one user-select rule in the file.
+   Worst on a For sale unit, where press-and-hold means you ARE holding still and then moving a little:
+   measured 123 characters selected. The furniture is now unselectable, the same as any map app. */
+.card, .fact-strip, .place-legend, .topnav, .pop, #compare, #mTabs, .m-side, #mChips, .m-page, .unit-menu,
+.tabs, .dock, .leaflet-control-container {
+  -webkit-user-select: none; -moz-user-select: none; user-select: none;
+}
+/* Two exceptions worth keeping: anything you type in, and the condo's name and address — the two things
+   worth copying out of a card. */
+input, textarea, select, #detail .title, #detail .sub {
+  -webkit-user-select: text; -moz-user-select: text; user-select: text;
+}
+/* iOS pops its own copy / look-up menu on a long press, which fights the press-and-hold gesture */
+.unit[data-unit] { -webkit-touch-callout: none; }
+
 html, body { height: 100%; margin: 0; background: radial-gradient(1200px 700px at 70% 10%, #ffffff 0%, #eeeeec 55%, #e4e4e2 100%);
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }   /* macOS renders text heavier than drawn */
 body { display: flex; flex-direction: column; font-size: 14px; }
