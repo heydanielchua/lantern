@@ -24,6 +24,10 @@
   --star: #f26a2e;
   --pin: #0C0C0C;
   --radius: 24px;       /* was 30; the reference sits tighter */
+  /* The one surface that has to be OPAQUE: a sticky table header with rows scrolling under it. The glass
+     tokens are see-through by design, so they cannot be used here. Was written twice as #f8f8f6 in the
+     Compare table (10 Nov). */
+  --sticky: #f8f8f6;
   --left-card: 420px;   /* the shortlist's width (Daniel chose it, 9 Nov: at 420 no condo name wraps;
                            measured 340 = 4 wrap, 380 = 2, 420 and 460 = none). The map's bottom-left
                            column steps aside by this. */
@@ -186,8 +190,11 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .cluster.has-star { box-shadow: 0 0 0 3px var(--star); }
 
 /* ---- peek card ---- */
+/* z-index 950, not 900: .map-bl (the facts strip + place chips) is also 900, so DOM order decided and the
+   strip won — measured 61% of this card buried under it, and because both are see-through you read the two
+   layers at once. movePeek() also steers it clear of that column now. (10 Nov) */
 .peek {
-  position: absolute; z-index: 900; width: 250px; pointer-events: none;
+  position: absolute; z-index: 950; width: 250px; pointer-events: none;
   background: rgba(255, 255, 255, 0.8); border: 1px solid #fff; border-radius: 20px;
   box-shadow: 0 18px 40px -18px rgba(40, 40, 40, 0.4); padding: 12px 14px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted);
@@ -746,17 +753,25 @@ html.m .fact-strip { display: none; }      /* the phone has the sheet instead */
 /* compare the shortlist side by side (review item 14, 28 Oct) */
 .cmp-btn { min-height: 30px; padding: 0 12px; font-size: 12px; font-weight: 600; margin-left: auto; margin-right: 6px; }
 .card.compare { left: 16px; right: 16px; width: auto; transform: none; z-index: 1001; }
-.map-wrap.left-open .card.compare { left: 312px; }
+/* 312 was 16 + 280 + 16, from when the shortlist was 280px wide. It is 420 now, so Compare was sitting
+   124px ON TOP of the shortlist (10 Nov). Derived from the token like .map-bl above, so it cannot go
+   stale again the next time the shortlist is resized. */
+.map-wrap.left-open .card.compare { left: calc(32px + var(--left-card)); }
 .card.compare[hidden] { display: none; }
 .compare .card-head { align-items: center; }
 .cmp-pick { padding: 0 16px 10px; display: flex; flex-direction: column; gap: 4px; }
-.compare .card-body { overflow: auto; padding: 0 0 14px; }        /* no padding: the fixed name row / label column sit flush */
-table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
-.cmptable th, .cmptable td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.compare .card-body { overflow: auto; padding: 0 0 16px; }        /* no side padding: the fixed name row / label column sit flush */
+/* The 9 Nov rule is "the CARD is see-through, the blocks inside stay readable" (--panel). Compare was the
+   one card that never got it: its rows were fully transparent, so the green/red values sat on open map —
+   over the sea in the east. Same treatment as every other block, not a new look. (10 Nov) */
+table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; background: var(--panel); }
+/* 8/12 and 14 were left over from October; everything else moved onto the 4/8pt grid on 9 Nov and this
+   table was missed, which is why Compare reads tighter than every other card. (10 Nov) */
+.cmptable th, .cmptable td { padding: 12px 16px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
 /* 150 put long names on three lines at 1280 ("Piccadilly Grand / Piccadilly Galleria"). 176 holds them
    to two, which is as good as it gets for a name that long in a column. */
-.cmptable th { position: sticky; top: 0; background: #f8f8f6; z-index: 2; border-bottom: 1px solid var(--edge); min-width: 176px; }
-.cmptable th:first-child, .cmptable td.lab { position: sticky; left: 0; background: #f8f8f6; z-index: 1; color: var(--muted); min-width: 186px; padding-left: 16px; }
+.cmptable th { position: sticky; top: 0; background: var(--sticky); z-index: 2; border-bottom: 1px solid var(--edge); min-width: 176px; }
+.cmptable th:first-child, .cmptable td.lab { position: sticky; left: 0; background: var(--sticky); z-index: 1; color: var(--muted); min-width: 186px; padding-left: 16px; }
 .cmptable th:first-child { z-index: 3; }
 .cmptable .cname { display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: var(--ink);
   font-family: var(--name); font-size: 19px; font-weight: 600; line-height: 1.14; letter-spacing: -0.02em;
@@ -770,8 +785,12 @@ table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font
 .cmptable tr.grp td span { position: sticky; left: 16px; }
 .compare .head-row .btn { white-space: nowrap; }
 .cmptable td small { display: block; font-size: 11px; color: var(--faint); font-weight: 400; }
-.cmptable td.good { color: #2e9b2d; font-weight: 700; }
-.cmptable td.bad { color: #e5483b; font-weight: 700; }
+/* Compare had its own one-off pair (#2e9b2d / #e5483b) instead of the shared tokens every other card
+   uses. Measured on white: the one-offs give 3.59 and 3.95, the tokens 4.15 and 5.48 — so this is both
+   a de-duplication and a readability gain. Neither green reaches AA's 4.50; that is the colour itself,
+   not the background, and it is Daniel's October palette, so it stays until he says otherwise. (10 Nov) */
+.cmptable td.good { color: var(--up); font-weight: 700; }
+.cmptable td.bad { color: var(--down); font-weight: 700; }
 
 /* ---- phone layout (1 Nov, from the iPhone Air mock-ups): html.m is set by app.js on phones ----
    One floating search bar, a floating tab bar, Apple Maps-style sheets. 44 pt+ tap targets, 15–16 px text,

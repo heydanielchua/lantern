@@ -771,11 +771,24 @@
   }
   function movePeek(e) {
     var el = $('peek'), box = $('map').getBoundingClientRect(), p = e.containerPoint;
-    var x = p.x + 18, y = p.y + 18;
+    var h = el.offsetHeight, x = p.x + 18, y = p.y + 18;
     if (x + 260 > box.width) x = p.x - 268;
-    if (y + el.offsetHeight + 8 > box.height) y = p.y - el.offsetHeight - 12;
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
+    if (y + h + 8 > box.height) y = p.y - h - 12;
+    // Keep clear of the map's bottom-left column (facts strip + place chips). It used to land straight on
+    // it — measured 61% of this card covered, and with two see-through layers you read both at once.
+    // Raising the z-index only stopped it being buried; this stops it landing there at all. (10 Nov)
+    var bl = document.querySelector('.map-bl');
+    if (bl && bl.offsetHeight) {
+      var r = bl.getBoundingClientRect();
+      var t = r.top - box.top, l = r.left - box.left, rt = r.right - box.left;
+      if (x < rt && x + 250 > l && y + h > t) {
+        if (t - h - 12 >= 0) y = t - h - 12;                 // above the column if it fits
+        else if (rt + 12 + 250 <= box.width) x = rt + 12;    // else to its right
+        else x = Math.max(0, l - 262);                       // else to its left
+      }
+    }
+    el.style.left = Math.max(0, x) + 'px';
+    el.style.top = Math.max(0, y) + 'px';
   }
   function hidePeek() { $('peek').hidden = true; }
 
