@@ -1062,27 +1062,50 @@
     var beds = [2, 3, 4];                       // the sizes Daniel is looking for; 2+ bedrooms, so start at 2
     var parts = nearParts(c);
 
+    // "2 or 4", "2, 3 or 4" — for naming the bedroom counts this condo does not have
+    function orList(a) {
+      if (a.length < 2) return a.join('');
+      return a.slice(0, -1).join(', ') + ' or ' + a[a.length - 1];
+    }
+
+    // Asking. A condo with one listing used to print the SAME figure three times under Cheapest /
+    // Typical / Dearest — one fact wearing three labels (Daniel's 13 Nov screenshot: $2.25M · $2.25M ·
+    // $2.25M). When every price is the same, say it once and say how many listings there are.
+    var lo = prices[0], hi = prices[prices.length - 1];
+    var ask = !prices.length ? '' :
+      (lo === hi
+        ? '<div class="fact-v">' + money(lo) + '</div><div class="fact-s">' +
+            units.length + ' listing' + (units.length === 1 ? '' : 's') + '</div>'
+        : '<div class="fact-v">' + money(lo) + ' – ' + money(hi) + '</div>' +
+          '<div class="fact-s">typical ' + money(med(prices)) + '</div>');
+
+    // Typical size. The dimmed scale was meant to show absence meaningfully, but with only one bedroom
+    // count on offer it was two thirds "none" and mostly empty space. List what IS here; name what is
+    // missing in one quiet line.
+    var have = beds.filter(function (b) { return byBed[b]; });
+    var miss = beds.filter(function (b) { return !byBed[b]; });
+    var size = have.length
+      ? '<div class="fact-list">' + have.map(function (b) {
+          return '<div><span>' + b + ' bed</span><b>' + n(byBed[b]) + '</b></div>'; }).join('') + '</div>' +
+        (miss.length ? '<div class="fact-s">no ' + orList(miss) + ' bed</div>' : '')
+      : '<div class="fact-s">sizes not stated</div>';
+
     el.hidden = false;
     el.innerHTML =
-      (prices.length ? '<div class="fact-c"><div class="fact-t">Asking</div><div class="fact-scale">' +
-        '<b>Cheapest</b><b>Typical</b><b>Dearest</b>' +
-        '<span>' + money(prices[0]) + '</span><span>' + money(med(prices)) + '</span><span>' + money(prices[prices.length - 1]) + '</span>' +
-        '</div></div>' : '') +
-      '<div class="fact-c"><div class="fact-t">Typical size · sqft</div><div class="fact-scale">' +
-        beds.map(function (b) { return '<b' + (byBed[b] ? '' : ' class="off"') + '>' + b + ' bed</b>'; }).join('') +
-        beds.map(function (b) { return byBed[b] ? '<span>' + n(byBed[b]) + '</span>' : '<span class="off">none</span>'; }).join('') +
-      '</div></div>' +
-      '<div class="fact-c"><div class="fact-t">Getting out</div><div class="fact-rows">' +
+      (ask ? '<div class="fact-c"><div class="fact-t">Asking</div>' + ask + '</div>' : '') +
+      '<div class="fact-c"><div class="fact-t">Typical size · sqft</div>' + size + '</div>' +
+      '<div class="fact-c"><div class="fact-t">Getting out</div><div class="fact-list">' +
         parts.map(function (x) { return '<div><span>' + x[0] + '</span><b class="' + x[2] + '">' + x[1] + '</b></div>'; }).join('') +
       '</div></div>';
-
   }
 
   // The bottom-left corner is shared by the place chips and the facts strip. They live in one column so
   // they stack on their own; measuring one to place the other went wrong, because the chips are drawn
   // after the card is.
   // Clear width between whatever is on the left (the shortlist, when open) and the condo card.
-  var STRIP_NEEDS = 660;        // three cards at 190-240 plus two 16px gaps, measured
+  // 660 was three separate cards at 190-240 plus two 16px gaps. It is one 560px box now (13 Nov), the
+  // same width as the place chips, so it fits in places it used to be dropped from.
+  var STRIP_NEEDS = 560;
   function roomForStrip() {
     var bl = $('mapBL'), card = $('detail');
     if (!bl || !card) return 0;

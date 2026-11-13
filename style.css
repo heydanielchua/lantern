@@ -625,36 +625,44 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 /* Facts strip over the map (9 Nov, from the reference). Its padding and gaps are the reference's own,
    scaled to our card: it uses ~40px on a 504px card, we use 24 on 430. */
 /* the shared bottom-left column: facts strip on top, place chips under it */
+/* pointer-events: none is NOT cosmetic. This column stretches to its max-width even though its children
+   are narrower — measured 1004 x 350 with a condo open, while the widest box inside is 664. All of that
+   empty area was catching the mouse, so the bottom-left ~18% of the map could not be dragged at all;
+   elementFromPoint there returned #mapBL, not the map. (Daniel, 13 Nov: "when i click on the condo, and
+   when i click on the map, it doesnt move".) The column must never take the pointer — only the real
+   boxes inside it may, and each of those turns it back on for itself. */
 .map-bl { position: absolute; left: 16px; bottom: 16px; z-index: 900; display: flex; flex-direction: column;
-  gap: 12px; align-items: flex-start; max-width: calc(100% - 480px); }
+  gap: 12px; align-items: flex-start; max-width: calc(100% - 480px); pointer-events: none; }
 /* No transition on `left`: app.js measures this column right after the shortlist opens to decide whether
    the facts strip still fits, and a transition makes that read return the OLD position — which showed
    the strip exactly when there was no room and hid it when there was. */
 /* The shortlist sits in this same corner. When it is open the facts strip and the place chips step aside,
    otherwise the card covers them — and covered chips cannot be clicked. */
 .map-wrap.left-open .map-bl { left: calc(32px + var(--left-card)); max-width: calc(100% - 480px - var(--left-card) - 16px); }
-/* strip above the chips, whichever order they were created in; each card is its own height — stretching
-   them to match left the two shorter ones with a lot of dead space */
-.fact-strip { display: flex; gap: 16px; align-items: flex-start; pointer-events: none; order: 1; }
-.place-legend { order: 2; }
+/* ONE box, matching the place chips below it exactly — same background, padding, radius and width
+   (Daniel, 13 Nov: "there's some negetive space. looks uncomplete... make it the same same as the map
+   display at the bottom"). It was three separate glass cards whose widths were set by their content, so
+   whenever a condo had little to say they left ragged gaps between them. Now the three are sections of
+   one box with hairlines between, and the box is a fixed, complete shape. */
+.fact-strip { display: flex; align-items: stretch; pointer-events: none; order: 1;
+  width: min(560px, 100%); box-sizing: border-box; padding: 12px; border-radius: 16px; background: rgba(251, 251, 250, 0.85);
+  border: 1px solid #fff; box-shadow: 0 10px 30px -18px rgba(40, 40, 40, 0.5); backdrop-filter: blur(10px); }
+.place-legend { order: 2; pointer-events: auto; }   /* the column is none; the chips need their clicks back */
 .fact-strip[hidden] { display: none; }
-.fact-c { background: var(--glass); border: 1px solid var(--edge); border-radius: 16px; padding: 20px 24px;
-  backdrop-filter: blur(46px) saturate(2); -webkit-backdrop-filter: blur(46px) saturate(2);
-  box-shadow: 0 16px 40px rgba(20, 24, 20, 0.14); }
-.fact-t { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase;
-  margin-bottom: 16px; }
-.fact-scale { display: grid; grid-template-columns: repeat(3, auto); gap: 8px 20px; }
-.fact-scale b { font-weight: 600; font-size: 12.5px; }
-.fact-scale span { font-size: 16px; font-variant-numeric: tabular-nums; }
-/* the reference's own device: the whole scale shown, the part that does not apply dimmed */
-.fact-scale .off { color: var(--faint); font-weight: 400; }
-.fact-rows { display: flex; flex-direction: column; gap: 8px; }
-.fact-rows div { display: flex; justify-content: space-between; gap: 24px; align-items: baseline;
-  background: var(--panel); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; }
-.fact-rows b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.fact-rows b.near { color: var(--up); } .fact-rows b.far { color: var(--down); }
+.fact-c { flex: 1 1 0; min-width: 0; padding: 2px 12px; border-left: 1px solid rgba(0, 0, 0, 0.09); }
+.fact-c:first-child { border-left: 0; padding-left: 4px; }
+.fact-c:last-child { padding-right: 4px; }
+.fact-t { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase;
+  margin-bottom: 8px; }
+.fact-v { font-size: 16px; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.fact-s { font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+.fact-list { display: flex; flex-direction: column; gap: 3px; }
+.fact-list div { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font-size: 13px; }
+.fact-list span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fact-list b { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fact-list b.near { color: var(--up); } .fact-list b.far { color: var(--down); }
 @media (prefers-reduced-transparency: reduce) {
-  .fact-c { backdrop-filter: none; -webkit-backdrop-filter: none; background: #f7f7f5; } }
+  .fact-strip { backdrop-filter: none; -webkit-backdrop-filter: none; background: #f7f7f5; } }
 html.m .fact-strip { display: none; }      /* the phone has the sheet instead */
 .place-legend .pl-title { width: 100%; font-size: 12px; font-weight: 600; color: var(--ink); }
 .place-legend button { display: inline-flex; gap: 5px; align-items: center; border: 1px solid #fff; background: rgba(255, 255, 255, 0.7);
