@@ -917,8 +917,29 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 /* The gaps between the peek's rows were landing at 28-30px from assorted margins, not the 16 the rest
    of HomeQuest uses — 86px of a 303px sheet on a screen where the map had 48px left. One flex column
    with one gap, so the spacing is stated once and is on the grid. (13 Nov) */
-.m-peekbody { padding: 6px 18px 16px !important; display: flex; flex-direction: column; gap: 16px; }
+.m-peekbody { padding: 6px 18px 16px !important; display: flex; flex-direction: column; gap: 12px; }
 .m-peekbody > * { margin-top: 0 !important; }
+/* Name and price side by side instead of stacked (14 Nov): two 50px rows and a gap became one row,
+   which is most of the 306px -> 194px. The x is positioned over the row, so the right-hand block
+   keeps clear of it. */
+.m-head2 { display: flex; align-items: flex-start; gap: 12px; padding-right: 38px; position: relative; }
+/* Both of these must stay on ONE line or the row doubles in height and the saving is gone: measured
+   98px instead of 50 with "Marine Parade · D15 · 94 yrs lease left" wrapping. The full name and address
+   are on the card itself when you swipe up. */
+.m-h2l { flex: 1 1 auto; min-width: 0; }
+.m-h2l .title, .m-h2l .sub {
+  white-space: nowrap; text-wrap: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.m-h2r { flex: 0 0 auto; text-align: right; min-width: 0; }
+.m-h2r .m-price { font-size: 26px; white-space: nowrap; }
+.m-h2meta { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; margin-top: 2px;
+  font-size: 12px; color: var(--muted); white-space: nowrap; }
+.m-h2meta b { font-family: var(--serif); font-weight: 400; font-size: 17px; color: var(--ink); }
+.m-h2meta i { font-style: normal; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; color: var(--faint); }
+/* the row reserves 38px on the right with padding; the x sits IN that space, not beyond it
+   (right: -38px put it outside the card and Safari clipped it at the screen edge) */
+.m-head2 .m-x { position: absolute; right: 0; top: 0; }
+/* the area peek's facts on one line — they used to wrap onto two */
+.m-oneline { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .m-mid { align-items: center; margin-top: 12px; }
 .m-x { flex: none; width: 36px; height: 36px; border-radius: 18px; border: 0; background: rgba(0, 0, 0, 0.06); color: var(--muted); display: grid; place-items: center; padding: 0; }
@@ -929,13 +950,19 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-ring svg { position: absolute; inset: 0; width: 58px; height: 58px; }
 .m-ring b { font-family: var(--serif); font-weight: 400; font-size: 22px; line-height: 1; margin-top: -6px; }
 .m-ring small { position: absolute; bottom: 12px; font-size: 8.5px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.4px; }
-.m-facts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+/* One line of facts, scrolled sideways rather than wrapped (14 Nov). Three facts wrapped onto three
+   rows and added 78px to the drawer for exactly the condos that have the most to say — the ones you
+   most want the map behind. */
+.m-facts { display: flex; flex-wrap: nowrap; gap: 7px; margin-top: 12px;
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.m-facts::-webkit-scrollbar { display: none; }
+.m-facts > * { flex: 0 0 auto; }
 .m-fact { height: 32px; border-radius: 16px; padding: 0 11px; background: rgba(255, 255, 255, 0.85); border: 1px solid #fff; display: inline-flex; align-items: center; gap: 6px;
   font-size: 13.5px; font-weight: 500; }
 .m-fact .mi { width: 16px; height: 16px; }
 .m-fact.good { color: var(--up); } .m-fact.warn { color: #b45a00; background: #fff1e0; border-color: #ffe2c2; } .m-fact.bad { color: var(--down); background: #fde8e6; border-color: #fbd3cf; }
 .m-actions { display: flex; gap: 10px; margin-top: 14px; }
-.m-btn { flex: 1; height: 50px; border-radius: 25px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font: 600 15.5px Urbanist, Inter, system-ui, sans-serif;
+.m-btn { flex: 1; height: 44px; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font: 600 15.5px Urbanist, Inter, system-ui, sans-serif;
   color: var(--ink); text-decoration: none; background: #fff; border: 1px solid #fff; box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.35); white-space: nowrap; }
 .m-btn.dark { background: var(--accent); color: #fff; border-color: var(--accent); }
 .m-btn .mi { width: 17px; height: 17px; }
@@ -1108,7 +1135,11 @@ html.m .wide-only { display: none; }
 .bpct.q { background: #e08a12; }
 .pill.warnpill { background: #fff1e0; color: #b45a00; }
 .m-fact.under { color: #2a8f29; background: #e7f6e6; border-color: #cdeccb; font-weight: 700; }
-.m-under { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+/* Two lines at most on the peek — it ran to three and the pill above it already carries the headline.
+   The whole sentence is still there when the sheet is pulled up. (14 Nov) */
+.m-under { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  max-height: 2.9em; overflow: hidden; }
 .m-under b { color: #2a8f29; }
 .m-chip.m-below[aria-pressed="true"] { background: #2a8f29; color: #fff; border-color: #2a8f29; }
 #btnBelow[aria-pressed="true"] { background: #2a8f29; border-color: #2a8f29; }

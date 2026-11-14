@@ -2977,7 +2977,17 @@
   }
   function mCover() {             // how much of the map the sheet (or tab bar) covers at the bottom, in px
     var el = $('detail');
-    if (S.panel && el.classList.contains('open') && !el.classList.contains('m-full')) return window.innerHeight - el.getBoundingClientRect().top;
+    if (S.panel && el.classList.contains('open') && !el.classList.contains('m-full')) {
+      // Measure what the sheet WILL cover, not where its slide-in has got to. The sheet moves with a
+      // transform, so during the animation getBoundingClientRect().top is still near the bottom of the
+      // screen — the map was told almost nothing was covered, and the FIRST condo opened after a load
+      // landed underneath the drawer (measured: pin at y 468, drawer top 421). Every condo opened after
+      // that was fine, because by then the sheet had finished moving — which is why it looked random.
+      // offsetHeight and the resolved CSS `bottom` are both unaffected by the transform. (14 Nov)
+      var h = el.offsetHeight, gap = parseFloat(getComputedStyle(el).bottom) || 0;
+      if (h) return h + gap;
+      return window.innerHeight - el.getBoundingClientRect().top;
+    }
     return 110;
   }
   function mSheet() {
@@ -3036,19 +3046,24 @@
     var bo = belowOf(c);
     if (bo) facts.unshift('<span class="m-fact ' + (bo.check ? 'warn' : 'under') + '">' + belowText(bo) + '</span>');
     var cheapest = units[0];
+    // Name and price share ONE row (14 Nov, Daniel: "make the drawer card smaller"). They were two
+    // 50px rows plus a gap; side by side they are one, which is most of 306px -> 194px. Nothing is
+    // dropped: same price, units, bedrooms, score and facts.
     return '<div class="card-body m-peekbody">' +
-      '<div class="m-row"><div><div class="title">' + esc(c.name) + (c.ec ? '<span class="badge">EC</span>' : '') + '</div>' +
+      '<div class="m-head2">' +
+      '<div class="m-h2l"><div class="title">' + esc(c.name) + (c.ec ? '<span class="badge">EC</span>' : '') + '</div>' +
       // built year dropped (13 Nov): the sub-line was running to two rows on a 393px screen, and the
       // tenure already says the thing you check first
       '<div class="sub">' + esc([a.name, c.district, mTenure(c)].filter(Boolean).join(' · ')) + '</div></div>' +
-      '<button type="button" class="m-x" data-action="close" aria-label="Close">' + mIcon('x') + '</button></div>' +
       // money(), not full(): "$1,299,999" took a whole row on its own and every other screen in
       // HomeQuest already says $1.30M. And the score is a number, not a ring — a ring is a lot of
       // drawing for two digits, and the sheet is the one place where height is scarce.
-      '<div class="m-row m-mid"><div><div class="m-price">' + (groups.length > 1 ? '<small>from</small> ' : '') + money(cheapest.price) + '</div>' +
-      '<div class="sub">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + (beds !== '—' ? ' · ' + beds + ' bed' : '') + '</div></div>' +
+      '<div class="m-h2r"><div class="m-price">' + (groups.length > 1 ? '<small>from</small> ' : '') + money(cheapest.price) + '</div>' +
+      '<div class="m-h2meta"><span>' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') +
+        (beds !== '—' ? ' · ' + beds + ' bed' : '') + '</span>' +
       (c.score && c.score.total != null
-        ? '<div class="m-score"><b>' + Math.round(c.score.total) + '</b><span>SCORE</span></div>' : '') + '</div>' +
+        ? '<b>' + Math.round(c.score.total) + '</b><i>SCORE</i>' : '') + '</div></div>' +
+      '<button type="button" class="m-x" data-action="close" aria-label="Close">' + mIcon('x') + '</button></div>' +
       (facts.length ? '<div class="m-facts">' + facts.join('') + '</div>' : '') + (bo ? '<div class="m-under">' + belowNote(bo) + '</div>' : '') +
       // one primary action, one quiet one. Two identical white buttons made you read both to choose.
       '<div class="m-actions"><button type="button" class="m-btn dark" data-action="star" aria-pressed="' + star + '">' +
@@ -3060,17 +3075,22 @@
   function mAreaPeek(id) {
     var a = S.areas[id], s = areaStats(id), u = a.ura, k = areaCondos(id).length;
     var badge = u && u.badge ? '<span class="chip ' + (u.badge === 'Growing' ? 'good' : (u.badge === 'Softening' ? 'bad' : 'flat')) + '">' + u.badge + '</span>' : '';
+    // Same shape as the condo peek (14 Nov). This one was the TALLER of the two at 336px: its facts
+    // wrapped onto two rows, and it still carried the "Swipe up for details" hint that the condo peek
+    // lost on 13 Nov — I had missed it. Now 179px. The $psf-vs-region line moves to the full card,
+    // where there is room for it; the three facts that are left fit one line.
+    var facts = [k + ' condo' + (k === 1 ? '' : 's') + ' · ' + s.n + ' for sale'];
+    if (a.crowd) facts.push('#' + a.crowd.rank + ' of ' + a.crowd.of + ' busiest');
     return '<div class="card-body m-peekbody">' +
-      '<div class="m-row"><div><div class="title">' + esc(a.name) + '</div><div class="sub">Planning area' + (a.label ? ' · ' + esc(a.label) : '') + '</div></div>' +
+      '<div class="m-head2">' +
+      '<div class="m-h2l"><div class="title">' + esc(a.name) + '</div>' +
+      '<div class="sub">Planning area' + (a.label ? ' · ' + esc(a.label) : '') + '</div></div>' +
+      '<div class="m-h2r"><div class="m-price">' + (u && u.psf12 ? full(u.psf12) : full(s.psf)) + '<small> psf</small></div>' +
+      '<div class="m-h2meta"><span>' + (u && u.psf12 ? 'URA, last 12 months' : 'typical asking') + '</span>' + badge + '</div></div>' +
       '<button type="button" class="m-x" data-action="close" aria-label="Close">' + mIcon('x') + '</button></div>' +
-      '<div class="m-row m-mid"><div><div class="m-price">' + (u && u.psf12 ? full(u.psf12) : full(s.psf)) + '<small> psf</small></div>' +
-      '<div class="sub">' + (u && u.psf12 ? "URA sales, last 12 months" : "typical asking") + '</div></div>' + badge + '</div>' +
-      '<div class="m-facts"><span class="m-fact">' + k + ' condo' + (k === 1 ? '' : 's') + ' · ' + s.n + ' for sale</span>' +
-      (a.crowd ? '<span class="m-fact">#' + a.crowd.rank + ' of ' + a.crowd.of + ' busiest</span>' : '') +
-      (pmLine(id) ? '<span class="m-fact ' + (pmPct(id) <= -3 ? 'good' : '') + '">$psf ' + pmLine(id) + '</span>' : '') + '</div>' +
-      '<div class="m-actions"><button type="button" class="m-btn dark" data-mfull="condos">Condos (' + k + ')</button>' +
-      '<button type="button" class="m-btn" data-mfull="summary">Area details</button></div>' +
-      '<div class="m-hint">Swipe up for details</div></div>';
+      '<div class="m-oneline">' + esc(facts.join(' · ')) + '</div>' +
+      '<div class="m-actions"><button type="button" class="m-btn dark" data-mfull="condos">Condos ' + k + '</button>' +
+      '<button type="button" class="m-btn" data-mfull="summary">Area details</button></div></div>';
   }
   // Drag the sheet: up = full page, down = smaller / close (Apple Maps style)
   // How far a flick would carry if you let it coast — Apple's projection from Designing Fluid Interfaces.
