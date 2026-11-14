@@ -2513,15 +2513,16 @@
     $('districtChips').innerHTML = Object.keys(ds).sort().map(function (d) { return '<button type="button" data-v="' + d + '">' + d.replace(/^D0/, 'D') + '</button>'; }).join('');
   }
 
+  // `which` is 'all' or any one key from activeTags, so the x on a phone filter chip can drop
+  // exactly that filter (13 Nov). Before this it only understood price / size / beds / all.
   function clearFilters(which) {
     var f = S.filters;
     if (which === 'price' || which === 'all') { $('priceMin').value = $('priceMax').value = '0'; }
     if (which === 'size' || which === 'all') { $('sizeMin').value = $('sizeMax').value = '0'; }
+    if (which === 'psf' || which === 'all') { $('psfMin').value = $('psfMax').value = '0'; }
     if (which === 'beds' || which === 'all') f.beds.length = 0;
-    if (which === 'all') {
-      $('psfMin').value = $('psfMax').value = '0';
-      ['floor', 'types', 'tenure', 'lease', 'age', 'baths', 'mrt', 'rent', 'region', 'districts', 'listed', 'xway', 'below', 'other'].forEach(function (k) { f[k].length = 0; });
-    }
+    if (which === 'all') MORE_KEYS.forEach(function (k) { f[k].length = 0; });
+    else if (Array.isArray(f[which])) f[which].length = 0;
   }
 
   function closePops() {
@@ -2866,11 +2867,14 @@
     chips.addEventListener('click', function (e) {
       if (e.target.closest('[data-m=filters]')) mOpenFilters(e);
       if (e.target.closest('[data-m=below]')) setBelow(!S.belowOn);
+      var drop = e.target.closest('[data-mclear]');          // the x on a filter chip
+      if (drop) { clearFilters(drop.dataset.mclear); applyFilters(); }
     });
     layers.addEventListener('click', function (e) {
       var b = e.target.closest('button');
       if (!b) return;
       if (b.hasAttribute('data-mclose')) return mLayers(false);
+      if (b.dataset.m === 'below') { setBelow(!S.belowOn); return mLayers(true); }
       if (b.dataset.place) {
         S.placesOn[b.dataset.place] = S.placesOn[b.dataset.place] ? 0 : 1;
         try { localStorage.setItem('hqPlacesOn', JSON.stringify(S.placesOn)); } catch (e2) { /* not remembered */ }
@@ -2938,18 +2942,24 @@
     var k = S.shortlist.length, b = $('mShortN');            // every saved one, including greyed ones
     b.textContent = k; b.hidden = !k;
   }
+  // Nothing to say, nothing on screen (13 Nov redesign). This row used to carry two chips at all times —
+  // a status readout ("541 condos · 22 Oct") and the Below-recent-sales switch — on two rows, 84px of a
+  // 659px screen, every second you used the map. The count belongs on Listings, where you go to read it;
+  // the switch belongs with the other map switches, in Layers. What is left is one chip per filter you
+  // have actually set, each with an x, so a filter can be dropped without opening the panel at all.
   function mChips() {
     if (!M) return;
-    var condos = {}, tags = activeTags();
-    S.listings.forEach(function (l) { if (visible(l)) condos[l.condo] = 1; });
-    var upd = S.meta.updated ? new Date(S.meta.updated + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : '';
+    var tags = activeTags(), el = $('mChips');
     var warn = $('status') && $('status').classList.contains('warn');
-    $('mChips').innerHTML = '<span class="m-chip" data-tip="' + esc($('status') ? $('status').title : '') + '"><i class="m-dot' + (warn ? ' warn' : '') + '"></i>' +
-      n(Object.keys(condos).length) + ' condos' + (upd ? ' · ' + upd : '') + '</span>' +
-      '<button type="button" class="m-chip m-below" data-m="below" aria-pressed="' + !!S.belowOn + '">▼ Below recent sales' +
-        (S.belowOn ? ' · ' + belowCount() : '') + '</button>' +
-      (tags.length ? '<button type="button" class="m-chip" data-m="filters">' + esc(tags.slice(0, 2).map(function (t) { return t[0]; }).join(' · ')) +
-        (tags.length > 2 ? ' +' + (tags.length - 2) : '') + '</button>' : '');
+    var bits = warn ? ['<span class="m-chip m-warn" data-tip="' + esc($('status').title || '') + '">' +
+      '<i class="m-dot warn"></i>' + esc(($('status').textContent || 'Check the data').trim()) + '</span>'] : [];
+    tags.forEach(function (t) {
+      bits.push('<button type="button" class="m-chip m-fchip" data-mclear="' + esc(t[1]) + '">' +
+        esc(t[0]) + '<i aria-hidden="true">×</i>' +
+        '<span class="sr-only">Remove this filter</span></button>');
+    });
+    el.innerHTML = bits.join('');
+    el.hidden = !bits.length;
     var moreOn = tags.filter(function (t) { return ['price', 'beds', 'mrt', 'xway', 'below'].indexOf(t[1]) < 0; }).length;
     if ($('mMoreOn')) $('mMoreOn').textContent = moreOn ? ' · ' + moreOn + ' on' : '';
   }
@@ -3028,15 +3038,24 @@
     var cheapest = units[0];
     return '<div class="card-body m-peekbody">' +
       '<div class="m-row"><div><div class="title">' + esc(c.name) + (c.ec ? '<span class="badge">EC</span>' : '') + '</div>' +
-      '<div class="sub">' + esc([a.name, c.district, mTenure(c), c.built ? 'built ' + c.built : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+      // built year dropped (13 Nov): the sub-line was running to two rows on a 393px screen, and the
+      // tenure already says the thing you check first
+      '<div class="sub">' + esc([a.name, c.district, mTenure(c)].filter(Boolean).join(' · ')) + '</div></div>' +
       '<button type="button" class="m-x" data-action="close" aria-label="Close">' + mIcon('x') + '</button></div>' +
-      '<div class="m-row m-mid"><div><div class="m-price">' + (groups.length > 1 ? '<small>from</small>' : '') + full(cheapest.price) + '</div>' +
-      '<div class="sub">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + ' for sale' + (beds !== '—' ? ' · ' + beds + ' bed' : '') + '</div></div>' +
-      mRing(c.score ? c.score.total : null) + '</div>' +
+      // money(), not full(): "$1,299,999" took a whole row on its own and every other screen in
+      // HomeQuest already says $1.30M. And the score is a number, not a ring — a ring is a lot of
+      // drawing for two digits, and the sheet is the one place where height is scarce.
+      '<div class="m-row m-mid"><div><div class="m-price">' + (groups.length > 1 ? '<small>from</small> ' : '') + money(cheapest.price) + '</div>' +
+      '<div class="sub">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + (beds !== '—' ? ' · ' + beds + ' bed' : '') + '</div></div>' +
+      (c.score && c.score.total != null
+        ? '<div class="m-score"><b>' + Math.round(c.score.total) + '</b><span>SCORE</span></div>' : '') + '</div>' +
       (facts.length ? '<div class="m-facts">' + facts.join('') + '</div>' : '') + (bo ? '<div class="m-under">' + belowNote(bo) + '</div>' : '') +
-      '<div class="m-actions"><button type="button" class="m-btn' + (star ? ' dark' : '') + '" data-action="star" aria-pressed="' + star + '">' +
-      (star ? '★' : '☆') + ' Shortlist</button><a class="m-btn" href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">Open listing ' + mIcon('ext') + '</a></div>' +
-      '<div class="m-hint">Swipe up for details</div></div>';
+      // one primary action, one quiet one. Two identical white buttons made you read both to choose.
+      '<div class="m-actions"><button type="button" class="m-btn dark" data-action="star" aria-pressed="' + star + '">' +
+      (star ? '★ Shortlisted' : '★ Shortlist') + '</button><a class="m-btn" href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">Open ' + mIcon('ext') + '</a></div>' +
+      // "Swipe up for details" removed: the grabber above already says it, and iOS never labels its
+      // own gestures. That line was a whole row of a screen with 48px of map left.
+      '</div>';
   }
   function mAreaPeek(id) {
     var a = S.areas[id], s = areaStats(id), u = a.ura, k = areaCondos(id).length;
@@ -3330,6 +3349,10 @@
       '<button type="button" class="m-x" data-mclose aria-label="Close">' + mIcon('x') + '</button></div>' +
       '<button type="button" class="m-pmrow" data-pm="toggle" aria-pressed="' + !!S.pm.on + '"><span class="m-pmsw"></span><span><b>Price map</b>' +
         '<small>Areas shaded cheaper or dearer than Singapore / their region</small></span></button>' +
+      // moved here from the always-on chip row (13 Nov): it is a map switch, so it belongs with the
+      // other map switches rather than taking a row of the screen whether or not it is on
+      '<button type="button" class="m-pmrow" data-m="below" aria-pressed="' + !!S.belowOn + '"><span class="m-pmsw"></span><span><b>Below recent sales</b>' +
+        '<small>' + (S.belowOn ? belowCount() + ' showing · green ring on the pin' : 'Mark condos asking under recent URA sales') + '</small></span></button>' +
       '<div class="m-lgrid">' + PLACE_KINDS.map(function (k) {
         return '<button type="button" data-place="' + k[0] + '" aria-pressed="' + !!S.placesOn[k[0]] + '"><span style="--c:' + k[2] + '">' + iconSvg(k[0]) + '</span>' + k[1] + '</button>';
       }).join('') + '</div>' +

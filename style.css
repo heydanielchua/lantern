@@ -812,8 +812,14 @@ html.m .map-wrap::after { display: none; }
    see-through sheet it was showing THROUGH the sheet's bottom edge, over "Swipe up for details".
    The sheet now stops 40px above the tab bar and the credit sits in that gap, on its own. */
 html.m .leaflet-bottom.leaflet-right { bottom: calc(var(--m-bot) + var(--m-tabh) + 16px); }
-html.m .leaflet-control-attribution { font-size: 9px; opacity: 0.9; max-width: 68vw;
-  background: rgba(255, 255, 255, 0.78); border-radius: 7px; padding: 1px 6px; }
+/* 13 Nov: it was a white pill wide enough to wrap onto two rows, which read as a piece of the interface
+   rather than a credit. One line, no box, a shadow so it stays readable over any tile. It still has to be
+   legible — that is the condition for the free OneMap pictures. */
+html.m .leaflet-bottom.leaflet-right { left: 0; right: 0; }
+html.m .leaflet-control-attribution { font-size: 9.5px; opacity: 1; max-width: 100%; margin: 0;
+  background: none; padding: 0 14px; text-align: center; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; color: #5d5c57; text-shadow: 0 1px 2px rgba(255, 255, 255, 0.95); }
+html.m .leaflet-control-attribution a { color: #5d5c57; }
 html.m .place-legend, html.m .peek, html.m #shortlist, html.m .card.compare { display: none !important; }
 html.m .m-glass, html.m .m-tabs, html.m .m-side button, html.m .m-chip, html.m .topnav {
   background: rgba(251, 251, 250, 0.78); border: 1px solid rgba(255, 255, 255, 0.9);
@@ -831,6 +837,18 @@ html.m:not(.m-tab-map) .topnav, html.m:not(.m-tab-map) .m-side, html.m:not(.m-ta
 html.m.m-full .topnav, html.m.m-full .m-side, html.m.m-full .m-chips { visibility: hidden; }
 html.m .topnav #btnShortlist, html.m .topnav .brand, html.m .topnav .spacer, html.m .topnav #count, html.m .topnav .status { display: none; }
 html.m .topnav .search { flex: 1 1 auto; max-width: none; position: static; }
+/* `.navcap` is the LAPTOP's one-capsule wrapper (9 Nov). On the phone the `.topnav` IS the capsule, so
+   this was a pill inside a pill: measured 62px tall inside a 54px bar — sticking out 4px above and 4px
+   below, which is the overlap — and it ended at x 286 of a bar ending at 381, leaving the Filters button
+   stranded 95px short of the right edge. (Daniel, 14 Nov: "the filter is overlaping the bar".)
+   Here it carries no glass of its own and only does layout. */
+html.m .navcap {
+  flex: 1 1 auto; min-width: 0; padding: 0; gap: 6px;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+html.m .navcap .search { flex: 1 1 auto; min-width: 0; }
+html.m .navcap .filter { flex: 0 0 auto; }
 html.m .topnav .search input { border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; font-size: 16px; padding: 0 2px; min-height: 50px; }
 html.m .topnav .search input:focus { outline: none; }
 html.m .search-results { position: fixed; top: calc(var(--m-top) + 72px); left: 12px; right: 12px; width: auto; min-width: 0; max-height: 60dvh; overflow-y: auto; border-radius: 22px; }
@@ -845,6 +863,14 @@ html.m [data-pop=popMore] .mi { width: 19px; height: 19px; }
 .m-chip { pointer-events: auto; height: 34px; border-radius: 17px; padding: 0 13px; display: inline-flex; align-items: center; gap: 7px; font: 600 13px Urbanist, Inter, system-ui, sans-serif;
   color: var(--ink); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .m-dot { width: 8px; height: 8px; border-radius: 4px; background: #38BC37; } .m-dot.warn { background: #f2a23a; }
+.m-chips[hidden] { display: none; }
+/* one chip per filter actually set, each droppable without opening the panel (13 Nov) */
+.m-fchip { padding-right: 8px; }
+.m-fchip i { font-style: normal; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; margin-left: 1px; border-radius: 10px; background: rgba(0, 0, 0, 0.07);
+  color: var(--muted); font-size: 13px; line-height: 1; }
+.m-fchip:active i { background: rgba(0, 0, 0, 0.14); }
+.m-chip.m-warn { color: #8a5a12; }
 .m-side { position: fixed; z-index: 1050; right: 12px; top: calc(var(--m-top) + 74px); display: flex; flex-direction: column; gap: 10px; }
 .m-side button { width: 48px; height: 48px; border-radius: 24px; display: grid; place-items: center; color: var(--ink); padding: 0; }
 
@@ -858,7 +884,7 @@ html.m.m-full .m-tabs { transform: translateY(calc(100% + 40px)); }
 .m-tabs .m-badge { top: 2px; right: calc(50% - 22px); }
 
 /* the condo / area sheet */
-html.m #detail.card { position: fixed; z-index: 1150; top: auto; left: 8px; right: 8px; bottom: calc(var(--m-bot) + var(--m-tabh) + 48px); width: auto; max-height: 64dvh;
+html.m #detail.card { position: fixed; z-index: 1150; top: auto; left: 8px; right: 8px; bottom: calc(var(--m-bot) + var(--m-tabh) + 38px); width: auto; max-height: 64dvh;
   border-radius: 30px; transform: translateY(calc(100% + var(--m-tabh) + 60px)); transition: transform 280ms cubic-bezier(.2, .8, .2, 1);
   background: rgba(250, 250, 248, 0.86); }
 html.m #detail.card.open { transform: none; }
@@ -888,7 +914,11 @@ html.m .tooltip { max-width: calc(100vw - 32px); font-size: 14px; }
 html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 
 /* preview card */
-.m-peekbody { padding: 6px 18px 14px !important; }
+/* The gaps between the peek's rows were landing at 28-30px from assorted margins, not the 16 the rest
+   of HomeQuest uses — 86px of a 303px sheet on a screen where the map had 48px left. One flex column
+   with one gap, so the spacing is stated once and is on the grid. (13 Nov) */
+.m-peekbody { padding: 6px 18px 16px !important; display: flex; flex-direction: column; gap: 16px; }
+.m-peekbody > * { margin-top: 0 !important; }
 .m-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .m-mid { align-items: center; margin-top: 12px; }
 .m-x { flex: none; width: 36px; height: 36px; border-radius: 18px; border: 0; background: rgba(0, 0, 0, 0.06); color: var(--muted); display: grid; place-items: center; padding: 0; }
@@ -910,6 +940,10 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-btn.dark { background: var(--accent); color: #fff; border-color: var(--accent); }
 .m-btn .mi { width: 17px; height: 17px; }
 .m-hint { text-align: center; font-size: 12px; color: var(--faint); margin-top: 10px; }
+/* the score as two digits, not a drawn ring: the peek is where height is scarcest (13 Nov) */
+.m-score { flex: none; text-align: right; }
+.m-score b { display: block; font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1; color: var(--ink); }
+.m-score span { display: block; font-size: 9px; font-weight: 600; letter-spacing: 0.09em; color: var(--faint); margin-top: 2px; }
 
 /* pages: Listings · Shortlist · Compare */
 .m-page { position: fixed; z-index: 1000; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
