@@ -177,7 +177,10 @@
   function start() {
     if (!DATA.googleKey) { window.HQ_STREETVIEW = null; DATA.data.meta.google = false; }
     $('login').hidden = true;
-    var s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s);
+    var s = document.createElement('script');
+    // same version as the page's own files, so a published change is never served from cache
+    s.src = 'app.js' + (window.HQ_V ? '?v=' + window.HQ_V : '');
+    document.body.appendChild(s);
     var lock = document.createElement('button');
     lock.type = 'button'; lock.className = 'btn'; lock.textContent = 'Lock';
     lock.title = 'Log out on this laptop'; lock.onclick = function () { LS.del('lanternKey'); LS.del('lanternToken'); location.reload(); };
