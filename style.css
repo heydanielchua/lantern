@@ -10,7 +10,7 @@
 :root {
   --ink: #2b2b2a;
   --muted: #66655f;     /* was #77766f: measured 3.97 against the card, which fails AA. 5.09 now. */
-  --faint: #a9a8a2;
+  --faint: #a9a8a2;     /* DECORATION ONLY (15 Nov, A2): section numbers, disabled, rules. 2.34 on a block - no words in it */
   --line: #e6e5e1;
   --soft: #f2f2f0;
   --paper: #fbfbfa;
@@ -128,7 +128,7 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .pop[hidden] { display: none; }
 .pop label { display: flex; align-items: center; gap: 8px; min-height: 28px; white-space: nowrap; }
 .pop select { font: inherit; padding: 4px 6px; margin-left: auto; }
-.hint { font-size: 12px; color: var(--faint); }
+.hint { font-size: 12px; color: var(--muted); }
 .search-results { list-style: none; margin: 0; padding: 6px; width: 100%; min-width: 300px; gap: 2px; }
 .search-results button {
   width: 100%; text-align: left; font: inherit; font-size: 13px; padding: 8px; border: 0;
@@ -202,7 +202,7 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .peek[hidden] { display: none; }
 .peek strong { color: var(--ink); font-size: 13px; }
 .peek .row { display: flex; justify-content: space-between; gap: 8px; }
-.peek .foot { color: var(--faint); padding-top: 3px; }
+.peek .foot { color: var(--muted); padding-top: 3px; }
 
 /* ---- floating cards ---- */
 .card {
@@ -271,16 +271,16 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .list-item small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .list-item small.fx { color: var(--ink); font-variant-numeric: tabular-nums; }
 .list-item .price small.psf { color: var(--muted); font-variant-numeric: tabular-nums; }
-.list-item .price { font-family: var(--serif); font-size: 20px; font-weight: 400; white-space: nowrap; text-align: right; }
+.list-item .price { font-family: var(--serif); font-size: 20px; font-weight: 400; white-space: nowrap; text-align: right; flex-shrink: 0; }
 .list-item .price small { font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 11px; }
 .star-mark { color: var(--star); }
-.empty { font-size: 13px; color: var(--faint); }
+.empty { font-size: 13px; color: var(--muted); }
 
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .stat { padding: 16px; border: 1px solid var(--edge); border-radius: 16px; background: var(--panel); font-size: 12px; color: var(--muted); }
 .stat strong { display: block; font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.1; color: var(--ink); margin: 2px 0; }
 .stat strong .soon-text, .stat strong .chip { font-family: "Urbanist", "Inter", system-ui, sans-serif; }
-.soon-text { color: var(--faint); font-weight: 500; font-size: 13px; }
+.soon-text { color: var(--muted); font-weight: 500; font-size: 13px; }
 
 .rows { display: flex; flex-direction: column; font-size: 13px; }
 .rows > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
@@ -300,7 +300,7 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 
 .photo {
   height: 90px; border: 1px dashed var(--faint); border-radius: 22px; display: flex; align-items: center;
-  justify-content: center; font-size: 12px; color: var(--faint); text-align: center; padding: 8px;
+  justify-content: center; font-size: 12px; color: var(--muted); text-align: center; padding: 8px;
 }
 .btn-main {
   display: block; text-align: center; padding: 12px; min-height: 44px; border-radius: 999px;
@@ -349,7 +349,7 @@ table.sales td { padding: 5px 6px 5px 0; border-bottom: 1px solid var(--soft); w
 .bar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: var(--muted); }
 .bar-fill { width: 100%; max-width: 34px; background: linear-gradient(180deg, #d6d6d3, #a9a8a2); border-radius: 4px 4px 0 0; }
 .bar-val { color: var(--ink); font-weight: 600; }
-.bar-year small { color: var(--faint); }
+.bar-year small { color: var(--muted); }
 
 /* comparison chips */
 .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
@@ -436,13 +436,13 @@ ul.plain { margin: 0; padding-left: 18px; display: flex; flex-direction: column;
 .gph.sv { width: 231px; }
 .gcred { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 10px; color: #fff; text-align: left;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.6)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gload { display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--faint); cursor: default; }
+.gload { display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); cursor: default; }
 .g-rating { font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 14px; font-weight: 700; color: var(--star); margin-left: 8px; white-space: nowrap; vertical-align: 8px; }
 .g-rating a { color: inherit; text-decoration: none; }
 .g-rating small { font-weight: 500; color: var(--muted); }
 .greview { display: flex; flex-direction: column; gap: 3px; padding: 8px 0; border-bottom: 1px solid var(--soft); font-size: 13px; }
 .gstars { color: var(--star); letter-spacing: 1px; font-size: 12px; }
-.g-attr { align-self: flex-end; font-size: 11px; color: var(--faint); }
+.g-attr { align-self: flex-end; font-size: 11px; color: var(--muted); }
 .lightbox { position: fixed; inset: 0; z-index: 4000; background: rgba(15, 23, 42, 0.88); display: flex; align-items: center; justify-content: center; }
 .lightbox[hidden] { display: none; }
 .lightbox figure { margin: 0; max-width: 90vw; max-height: 86vh; display: flex; flex-direction: column; gap: 8px; align-items: center; }
@@ -472,7 +472,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .nrow > span:first-child { color: var(--muted); }
 .nv { color: var(--muted); } .nv strong { color: var(--ink); }
 .scale { margin: 4px 0 2px; }
-.sends { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: 4px; }
+.sends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
 
 /* People tab: one chart type per fact (option A, 23 Oct) */
 .solo .part > .head-row > strong { font-size: 15px; font-weight: 600; color: var(--ink); }
@@ -491,7 +491,12 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .hero .lab { font-family: var(--serif); font-size: 18px; color: var(--muted); }
 .money { font-family: var(--serif); font-size: 48px; font-weight: 400; line-height: 1; color: var(--ink); letter-spacing: -0.01em; }
 .money span { color: #b9b8b2; }
-.pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.pills { display: flex; flex-wrap: nowrap; justify-content: center; gap: 6px; max-width: 100%; }  /* max-width: a centred
+   column sizes the row to all its pills (411px in a 338px card) unless it is capped, and then nothing can shorten */
+/* 15 Nov (A7, Daniel: "keep them one line"): when a card is too narrow for every pill, the ones after the first
+   shorten with "…" and fitCard() in app.js puts the whole text on hover. The first (units for sale) never shortens. */
+.pills > .pill { display: block; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pills > .pill:first-child { flex-shrink: 0; }
 .pill { display: inline-flex; gap: 4px; align-items: center; border: 1px solid #fff; background: rgba(255, 255, 255, 0.75);
   border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; color: var(--ink); }
 .pill.up { color: var(--up); } .pill.down { color: var(--down); }
@@ -499,7 +504,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .hist i { flex: 1; background: repeating-linear-gradient(90deg, #d6d5d0 0 2px, transparent 2px 3.5px); }
 .hist i.hi { background: repeating-linear-gradient(90deg, #46b035 0 2px, transparent 2px 3.5px); }
 .hist i.hi.down { background: repeating-linear-gradient(90deg, #f05a5a 0 2px, transparent 2px 3.5px); }
-.hist-x { display: flex; justify-content: space-between; width: 100%; font-size: 11px; color: var(--faint); }
+.hist-x { display: flex; justify-content: space-between; width: 100%; font-size: 11px; color: var(--muted); }
 .gauge { position: relative; width: 240px; height: 132px; margin: 4px auto 0; }
 .gauge .g { position: absolute; left: 0; right: 0; top: 64px; text-align: center; font-size: 11px; color: var(--muted); line-height: 1.3; }
 .gauge .g b { display: block; font-family: var(--serif); font-size: 26px; font-weight: 400; color: var(--ink); }
@@ -546,7 +551,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
   overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .hseg b { display: block; color: var(--ink); font-size: 14px; font-weight: 600; }
 .cols.lines { justify-content: space-between; padding: 6px 4px 0; }
-.cols.lines .top { font-size: 12px; color: var(--faint); margin-bottom: 6px; } .cols.lines .top strong { color: var(--ink); font-weight: 500; }
+.cols.lines .top { font-size: 12px; color: var(--muted); margin-bottom: 6px; } .cols.lines .top strong { color: var(--ink); font-weight: 500; }
 .cols.lines .on .top strong { font-weight: 700; } .cols.lines .on small { color: var(--ink); font-weight: 600; }
 .arrow { font-size: 11.5px; font-weight: 600; text-align: right; color: var(--muted); }
 .arrow.up { color: #2a9a2a; } .arrow.down { color: #e04848; }
@@ -558,8 +563,8 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .bars.lines.rent .bar.on .bar-fill { background: repeating-linear-gradient(90deg, #f08c8c 0 2px, transparent 2px 4px); }
 .bars.lines .bar.on { color: var(--ink); font-weight: 600; }
 .score-total { font-family: var(--serif); font-size: 26px; font-weight: 400; line-height: 1; }
-.score-total small { font-family: inherit; font-size: 13px; color: var(--faint); margin-left: 2px; }
-.score-legend small { color: var(--faint); font-size: 11px; }
+.score-total small { font-family: inherit; font-size: 13px; color: var(--muted); margin-left: 2px; }
+.score-legend small { color: var(--muted); font-size: 11px; }
 .score-legend .sv { font-weight: 600; color: var(--ink); }
 .big-num { font-family: var(--serif); font-size: 34px; font-weight: 400; line-height: 1.1; }
 .big-num span { font-family: "Urbanist", "Inter", system-ui, sans-serif; font-size: 13px; color: var(--muted); }
@@ -655,7 +660,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .fact-t { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase;
   margin-bottom: 8px; }
 .fact-v { font-size: 16px; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
-.fact-s { font-size: 11.5px; color: var(--faint); margin-top: 3px; }
+.fact-s { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
 .fact-list { display: flex; flex-direction: column; gap: 3px; }
 .fact-list div { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font-size: 13px; }
 .fact-list span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -678,7 +683,7 @@ html.m .fact-strip { display: none; }      /* the phone has the sheet instead */
 .fpanel { width: 330px; padding: 16px 18px 12px; border-radius: 24px; gap: 0; }
 .fpanel.wide { width: 600px; }
 .fpanel h4 { margin: 12px 0 6px; font-size: 12.5px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
-.fpanel h4 span { font-weight: 400; color: var(--faint); }
+.fpanel h4 span { font-weight: 400; color: var(--muted); }
 .fpanel .fcols > div > h4:first-child, .fpanel > h4:first-child { margin-top: 0; }
 .fcols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
 .fchips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -701,7 +706,11 @@ html.m .fact-strip { display: none; }      /* the phone has the sheet instead */
 /* keep the top bar on one line now that the filters show summaries */
 .topnav { flex-wrap: nowrap; }
 .topnav .meta { min-width: 0; flex: 0 1 auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
-.topnav .search { flex: 1 1 180px; min-width: 150px; }
+/* 15 Nov (A6): the hint was cut to "Search condo, street or M". The capsule is sized to its contents, so the box
+   never grew; 236px fits the hint with room to spare and can still give way down to 190px on a narrow window. */
+.topnav .search { flex: 0 1 auto; width: 236px; min-width: 190px; }   /* a real width: the capsule sizes itself from
+   its contents' widths, and a flex-basis alone left the box at its 190px minimum */
+.topnav .navcap { flex-shrink: 0; }   /* the capsule held its size; the listings count beside it shortens with "…" instead */
 .topnav .btn { white-space: nowrap; flex: 0 0 auto; }
 .ftop { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
 .ftop > div > h4:first-child { margin-top: 0; }
@@ -816,11 +825,11 @@ table.cmptable { border-collapse: separate; border-spacing: 0; width: 100%; font
 .cmptable .csub { font-size: 12px; color: var(--muted); font-weight: 400; margin-top: 2px; }
 .cmptable .cscore { display: flex; align-items: baseline; gap: 5px; margin-top: 8px; }
 .cmptable .cscore b { font-family: var(--serif); font-size: 30px; font-weight: 400; color: var(--ink); }
-.cmptable .cscore span { font-size: 11px; color: var(--faint); font-weight: 500; }
+.cmptable .cscore span { font-size: 11px; color: var(--muted); font-weight: 500; }
 .cmptable tr.grp td { font-size: 12px; font-weight: 700; color: var(--ink); padding-top: 16px; border-bottom: 1px solid var(--edge); }
 .cmptable tr.grp td span { position: sticky; left: 16px; }
 .compare .head-row .btn { white-space: nowrap; }
-.cmptable td small { display: block; font-size: 11px; color: var(--faint); font-weight: 400; }
+.cmptable td small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
 /* Compare had its own one-off pair (#2e9b2d / #e5483b) instead of the shared tokens every other card
    uses. Measured on white: the one-offs give 3.59 and 3.95, the tokens 4.15 and 5.48 — so this is both
    a de-duplication and a readability gain. Neither green reaches AA's 4.50; that is the colour itself,
@@ -875,7 +884,7 @@ html.m .navcap {
   background: none; border: 0; border-radius: 0; box-shadow: none;
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
-html.m .navcap .search { flex: 1 1 auto; min-width: 0; }
+html.m .navcap .search { flex: 1 1 auto; min-width: 0; width: auto; }
 html.m .navcap .filter { flex: 0 0 auto; }
 html.m .topnav .search input { border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; font-size: 16px; padding: 0 2px; min-height: 50px; }
 html.m .topnav .search input:focus { outline: none; }
@@ -962,7 +971,7 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-h2meta { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; margin-top: 2px;
   font-size: 12px; color: var(--muted); white-space: nowrap; }
 .m-h2meta b { font-family: var(--serif); font-weight: 400; font-size: 17px; color: var(--ink); }
-.m-h2meta i { font-style: normal; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; color: var(--faint); }
+.m-h2meta i { font-style: normal; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; color: var(--muted); }
 /* the row reserves 38px on the right with padding; the x sits IN that space, not beyond it
    (right: -38px put it outside the card and Safari clipped it at the screen edge) */
 .m-head2 .m-x { position: absolute; right: 0; top: 0; }
@@ -977,7 +986,7 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-ring { position: relative; width: 58px; height: 58px; flex: none; display: grid; place-items: center; }
 .m-ring svg { position: absolute; inset: 0; width: 58px; height: 58px; }
 .m-ring b { font-family: var(--serif); font-weight: 400; font-size: 22px; line-height: 1; margin-top: -6px; }
-.m-ring small { position: absolute; bottom: 12px; font-size: 8.5px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.4px; }
+.m-ring small { position: absolute; bottom: 12px; font-size: 8.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
 /* One line of facts, scrolled sideways rather than wrapped (14 Nov). Three facts wrapped onto three
    rows and added 78px to the drawer for exactly the condos that have the most to say — the ones you
    most want the map behind. */
@@ -994,11 +1003,11 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
   color: var(--ink); text-decoration: none; background: #fff; border: 1px solid #fff; box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.35); white-space: nowrap; }
 .m-btn.dark { background: var(--accent); color: #fff; border-color: var(--accent); }
 .m-btn .mi { width: 17px; height: 17px; }
-.m-hint { text-align: center; font-size: 12px; color: var(--faint); margin-top: 10px; }
+.m-hint { text-align: center; font-size: 12px; color: var(--muted); margin-top: 10px; }
 /* the score as two digits, not a drawn ring: the peek is where height is scarcest (13 Nov) */
 .m-score { flex: none; text-align: right; }
 .m-score b { display: block; font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1; color: var(--ink); }
-.m-score span { display: block; font-size: 9px; font-weight: 600; letter-spacing: 0.09em; color: var(--faint); margin-top: 2px; }
+.m-score span { display: block; font-size: 9px; font-weight: 600; letter-spacing: 0.09em; color: var(--muted); margin-top: 2px; }
 
 /* pages: Listings · Shortlist · Compare */
 .m-page { position: fixed; z-index: 1000; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
@@ -1102,7 +1111,7 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-cmphead { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; position: sticky; top: 0; }
 .m-ch { text-align: left; background: #fff; border: 0; border-radius: 20px; padding: 12px 14px; box-shadow: 0 8px 20px -16px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; font: inherit; color: var(--ink); }
 .m-ch .m-nm { font-size: 20px; }
-.m-cs { display: flex; align-items: baseline; gap: 4px; margin-top: 8px; font-size: 11px; color: var(--faint); }
+.m-cs { display: flex; align-items: baseline; gap: 4px; margin-top: 8px; font-size: 11px; color: var(--muted); }
 .m-cs b { font-family: var(--serif); font-weight: 400; font-size: 28px; color: var(--ink); }
 .m-grp { font-size: 12.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin: 18px 4px 6px; }
 .m-crow { background: #fff; border-radius: 18px; padding: 2px 14px; }
@@ -1110,7 +1119,7 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-r:last-child { border-bottom: 0; }
 .m-lab { font-size: 12.5px; color: var(--muted); margin-bottom: 3px; }
 .m-v { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 15px; font-weight: 600; }
-.m-v small { display: block; font-size: 11.5px; font-weight: 400; color: var(--faint); }
+.m-v small { display: block; font-size: 11.5px; font-weight: 400; color: var(--muted); }
 .m-v .g { color: var(--up); } .m-v .b { color: var(--down); }
 
 /* filters: a full sheet with a fixed "Show N condos" button */
@@ -1131,7 +1140,7 @@ html.m #popMore .hint { font-size: 12.5px; }
 .m-fmore summary::-webkit-details-marker { display: none; }
 .m-fmore summary::after { content: "›"; font-size: 22px; color: var(--faint); transition: transform 200ms; }
 .m-fmore[open] summary::after { transform: rotate(90deg); }
-.m-fmore summary span { color: var(--faint); font-weight: 500; margin-right: auto; margin-left: 6px; }
+.m-fmore summary span { color: var(--muted); font-weight: 500; margin-right: auto; margin-left: 6px; }
 html.m #popMore .ffoot { position: sticky; bottom: 0; margin: 20px -18px 0; padding: 12px 18px calc(var(--m-bot) + 14px); background: #f6f6f4; border-top: 1px solid var(--line); }
 html.m #popMore .ffoot .link-btn { display: none; }
 html.m #popMore .fshow { width: 100%; height: 54px; font-size: 16.5px; }
@@ -1197,3 +1206,10 @@ html.m #btnBelow, html.m #btnPriceMap { display: none; }
 .m-pmrow[aria-pressed="true"] { border: 2px solid var(--accent); }
 .m-pmrow b { display: block; font-size: 15px; } .m-pmrow small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .m-pmsw { flex: none; width: 32px; height: 32px; border-radius: 16px; background: linear-gradient(90deg, #46B035 0 50%, #F05A5A 50% 100%); opacity: 0.75; }
+
+/* 15 Nov (A1): a finger needs 44 x 44 and the pins are 16-24px. This invisible ring around each pin takes the tap;
+   the dot, its label and how labels make room for each other (declutter, which measures the label) are unchanged. */
+html.m .leaflet-marker-icon.pinwrap::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px;
+  transform: translate(-50%, -50%); border-radius: 50%;
+}

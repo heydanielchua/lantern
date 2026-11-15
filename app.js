@@ -1203,6 +1203,21 @@
     });
   }
 
+  // After a card is drawn (15 Nov, A7). Pills stay on one line, so one that had to shorten to "…" gets its whole
+  // text on hover. A slice of the "type of home" bar too narrow for its label (a 4% slice is about 8px) shows no
+  // label instead of a clipped one, and keeps the words on hover.
+  function fitCard(root) {
+    root.querySelectorAll('.pills > .pill').forEach(function (p) {
+      if (!p.title && p.scrollWidth > p.clientWidth + 1) p.title = p.textContent.trim();
+    });
+    root.querySelectorAll('.hseg > div').forEach(function (d) {
+      var b = d.querySelector('b');
+      if (!b || b.scrollWidth <= b.clientWidth + 1) return;
+      d.title = (b.textContent + ' ' + d.textContent.slice(b.textContent.length)).trim();
+      d.innerHTML = '';
+    });
+  }
+
   function renderPanel() {
     if (M) return mSheet();
     var el = $('detail');
@@ -1210,6 +1225,7 @@
     el.innerHTML = S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(condoOf(S.panel.condo));
     el.classList.add('open');
     el.setAttribute('aria-hidden', 'false');
+    fitCard(el);
     el.querySelector('.card-body').scrollTop = 0;
     declutter();
     setTimeout(function () { declutter(); factStrip(); }, 520);   // again once the map has landed and
@@ -3080,6 +3096,7 @@
       (S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(condoOf(S.panel.condo))) : mPeekHtml());
     el.classList.add('open');
     el.classList.toggle('m-full', full); el.classList.toggle('m-peek', !full);
+    fitCard(el);                     // after the width is set: a full sheet is wider than a peek
     el.setAttribute('aria-hidden', 'false');
     root.classList.toggle('m-full', full);
     var body = el.querySelector('.card-body');
