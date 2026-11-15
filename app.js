@@ -2177,8 +2177,8 @@
         '<span class="gcred">' + (it.sv ? 'Street View' : '© ' + esc(it.credit)) + '</span></button>';
     }).join('') +
       (g && g.loading ? '<div class="gph gload">Loading photos…</div>' : '') + '</div>' +
-      (items.length > 1 ? '<button type="button" class="garrow l" data-action="gprev" aria-label="Previous photo" hidden>‹</button>' +
-        '<button type="button" class="garrow r" data-action="gnext" aria-label="Next photo">›</button>' +
+      (items.length > 1 ? '<button type="button" class="garrow l" data-action="gprev" aria-label="Previous photo" hidden><span class="chev l" aria-hidden="true"></span></button>' +
+        '<button type="button" class="garrow r" data-action="gnext" aria-label="Next photo"><span class="chev r" aria-hidden="true"></span></button>' +
         '<span class="gcount">1 / ' + items.length + '</span>' : '') + '</div>' +
       (g && g.error ? '<span class="est est-warn">Google photos unavailable' + tip(g.error) + '</span>' : '');
   }
@@ -2249,8 +2249,8 @@
       return a.uri ? '<a href="' + esc(a.uri) + '" target="_blank" rel="noopener">' + esc(a.name) + '</a>' : esc(a.name);
     }).join(', ') + ' · Google Maps';
     box.innerHTML = '<figure><img src="' + esc(it.src) + '" alt=""><figcaption>' + credit + ' · ' + (i + 1) + ' / ' + items.length + '</figcaption></figure>' +
-      (items.length > 1 ? '<button type="button" class="lb-nav lb-prev" data-lb="' + prev + '" aria-label="Previous photo">‹</button>' +
-        '<button type="button" class="lb-nav lb-next" data-lb="' + next + '" aria-label="Next photo">›</button>' : '') +
+      (items.length > 1 ? '<button type="button" class="lb-nav lb-prev" data-lb="' + prev + '" aria-label="Previous photo"><span class="chev l" aria-hidden="true"></span></button>' +
+        '<button type="button" class="lb-nav lb-next" data-lb="' + next + '" aria-label="Next photo"><span class="chev r" aria-hidden="true"></span></button>' : '') +
       '<button type="button" class="lb-close" data-lb="close" aria-label="Close">×</button>';
     box.hidden = false;
     box.querySelector('.lb-close').focus();
@@ -2487,7 +2487,7 @@
     }).join('') + '</div><span class="hint">Up to ' + COMPARE_MAX + ' at a time.</span></div>' : '';
     var old = el.querySelector('.card-body'), x = old ? old.scrollLeft : 0, y = old ? old.scrollTop : 0;
     el.innerHTML = '<div class="card-head"><div><div class="title">Compare</div><div class="sub">' + cs.length + ' condos from your shortlist · green = best, red = weakest in each row</div></div>' +
-      '<div class="head-row"><button type="button" class="btn" data-cmp-pick aria-expanded="' + S.compare.pick + '">Choose<span class="wide-only"> condos</span> ▾</button>' +
+      '<div class="head-row"><button type="button" class="btn" data-cmp-pick aria-expanded="' + S.compare.pick + '">Choose<span class="wide-only"> condos</span> <span class="chev" aria-hidden="true"></span></button>' +
       '<button type="button" class="icon-btn" data-cmp-close aria-label="Close">×</button></div></div>' + pick +
       '<div class="card-body"><table class="cmptable"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
     el.querySelector('.card-body').scrollLeft = x; el.querySelector('.card-body').scrollTop = y;
@@ -2653,7 +2653,7 @@
     // one Filters button showing how many filters are on (agreed 25 Oct)
     var tags = activeTags(), btn = document.querySelector('[data-pop=popMore]');
     btn.classList.toggle('active', tags.length > 0);
-    btn.innerHTML = M ? mFilterBtn(tags.length) : 'Filters' + (tags.length ? ' <small>(' + tags.length + ')</small>' : '') + ' ▾';
+    btn.innerHTML = M ? mFilterBtn(tags.length) : 'Filters' + (tags.length ? ' <small>(' + tags.length + ')</small>' : '') + ' <span class="chev" aria-hidden="true"></span>';
     drawPins();
     restyle();
     updateCount();

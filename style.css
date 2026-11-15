@@ -10,6 +10,8 @@
 :root {
   --ink: #2b2b2a;
   --muted: #66655f;     /* was #77766f: measured 3.97 against the card, which fails AA. 5.09 now. */
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");      /* the one caret (15 Nov); a mask, so it takes the text colour */
+  --chev-ink: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232b2b2a' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");  /* the same, drawn in --ink, for drop-downs */
   --faint: #a9a8a2;     /* DECORATION ONLY (15 Nov, A2): section numbers, disabled, rules. 2.34 on a block - no words in it */
   --line: #e6e5e1;
   --soft: #f2f2f0;
@@ -253,7 +255,7 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 .eyebrow { font-size: 15px; font-weight: 600; color: var(--ink); counter-increment: sec; }
 .eyebrow::before { content: counter(sec, decimal-leading-zero); font-size: 11px; font-weight: 500; color: var(--faint); margin-right: 8px; }
 .icon-btn {
-  flex: 0 0 auto; font: inherit; font-size: 16px; width: 36px; height: 36px; border-radius: 12px;
+  flex: 0 0 auto; font: inherit; font-size: 16px; width: 36px; height: 36px; border-radius: 12px; display: inline-grid; place-items: center; padding: 0;
   border: 1px solid var(--edge); background: var(--panel); cursor: pointer; color: var(--ink);
 }
 .icon-btn:hover { background: #fff; }
@@ -464,7 +466,7 @@ ul.plain { margin: 0; padding-left: 18px; display: flex; flex-direction: column;
 .lightbox img { max-width: 90vw; max-height: 80vh; border-radius: 8px; }
 .lightbox figcaption { color: #e5e7eb; font-size: 12px; } .lightbox figcaption a { color: #fff; }
 .lb-nav, .lb-close { position: absolute; border: 0; background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 28px;
-  width: 48px; height: 48px; border-radius: 50%; cursor: pointer; }
+  width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; padding: 0; }
 .lb-nav:hover, .lb-close:hover { background: rgba(255, 255, 255, 0.3); }
 .lb-prev { left: 20px; } .lb-next { right: 20px; } .lb-close { top: 16px; right: 16px; font-size: 24px; }
 
@@ -619,7 +621,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
 .gwrap .gphotos::-webkit-scrollbar { display: none; }
 .garrow { position: absolute; top: 50%; margin-top: -16px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid #fff;
   background: rgba(255, 255, 255, 0.9); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); font-size: 19px; line-height: 1; color: var(--ink);
-  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0 0 2px; }
+  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }   /* was 0 0 2px: a nudge for the typed ‹ */
 .garrow[hidden] { display: none; }
 .garrow:hover { background: #fff; }
 .garrow.l { left: 8px; } .garrow.r { right: 8px; }
@@ -1153,8 +1155,9 @@ html.m #popMore .hint { font-size: 12.5px; }
 .m-fmore { margin-top: 22px; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 0 14px 14px; }
 .m-fmore summary { list-style: none; height: 52px; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 15.5px; }
 .m-fmore summary::-webkit-details-marker { display: none; }
-.m-fmore summary::after { content: "›"; font-size: 22px; color: var(--faint); transition: transform 200ms; }
-.m-fmore[open] summary::after { transform: rotate(90deg); }
+.m-fmore summary::after { content: ""; width: 16px; height: 16px; background: var(--muted); transform: rotate(-90deg); transition: transform 200ms;
+  -webkit-mask: var(--chev) center / contain no-repeat; mask: var(--chev) center / contain no-repeat; }
+.m-fmore[open] summary::after { transform: rotate(0deg); }
 .m-fmore summary span { color: var(--muted); font-weight: 500; margin-right: auto; margin-left: 6px; }
 html.m #popMore .ffoot { position: sticky; bottom: 0; margin: 20px -18px 0; padding: 12px 18px calc(var(--m-bot) + 14px); background: #f6f6f4; border-top: 1px solid var(--line); }
 html.m #popMore .ffoot .link-btn { display: none; }
@@ -1228,3 +1231,26 @@ html.m .leaflet-marker-icon.pinwrap::before {
   content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px;
   transform: translate(-50%, -50%); border-radius: 50%;
 }
+
+/* 15 Nov (Daniel: "check all the carats ... some are just too thin while some are off centred from the button"):
+   ONE caret for the whole of HomeQuest. It was four designs in three sizes: a filled ▾ (Filters, Choose), the
+   browser's own chevron on every drop-down, and typed ‹ › characters, which sit on a line of text and so rode
+   1-1.5px low in their round buttons (and only 5px tall on the shortlist's hide button). Now one drawn chevron -
+   Lucide's, the family the map's place icons come from - with the same 1.75px line at every size, pointing down for
+   drop-downs and Filters and turned for left / right. Rotated, never redrawn, so the shapes can't drift apart. */
+.chev {
+  display: inline-block; flex: 0 0 auto; width: 12px; height: 12px; background: currentColor; vertical-align: -1px;
+  -webkit-mask: var(--chev) center / contain no-repeat; mask: var(--chev) center / contain no-repeat;
+}
+.chev.l { transform: rotate(90deg); } .chev.r { transform: rotate(-90deg); } .chev.u { transform: rotate(180deg); }
+.btn .chev { margin-left: 2px; }   /* plus the space before it: about 6px from the word */
+.icon-btn .chev, .garrow .chev { width: 16px; height: 16px; }
+.lb-nav .chev { width: 24px; height: 24px; }
+/* Every drop-down draws the same chevron. html + :not() outrank the `background:` shorthand on .short-tools,
+   .list-tools, .frow and .pop selects, which would otherwise wipe the arrow out. */
+html select:not([multiple]) {
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  background-image: var(--chev-ink); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 12px;
+  padding-right: 32px;
+}
+html.m #popMore select:not([multiple]) { padding-right: 36px; background-size: 14px 14px; }
