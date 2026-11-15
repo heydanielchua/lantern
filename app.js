@@ -6,9 +6,13 @@
   var SCORE_SHORT = ['Parks', 'Car', 'Price', 'Quiet', 'Value'];
   var SCORE_WEIGHTS = [20, 30, 15, 15, 20];     // same order as SCORE_AXES; add up to 100 (agreed 24 Oct)
   var PRICE_STEPS = [800000, 1000000, 1200000, 1400000, 1600000, 1800000, 1900000, 2000000];   // budget back to S$2M (8 Nov)
+  // What the robots collect up to (MAX_PRICE in full_99co.py / full_propertyguru.py). Keep the three in step:
+  // a listing that disappears only because it is dearer than this is still for sale, and saying "no longer
+  // listed" about it would be a lie. Used by buildCondos to tell the two apart.
+  var PRICE_CAP = 2000000;
 
   var S = {
-    listings: [], condos: {}, areas: {}, meta: {},
+    listings: [], goneList: [], gone: {}, condos: {}, areas: {}, meta: {},
     condoView: (function () { try { return localStorage.getItem('hqCondoView') || 'list'; } catch (e) { return 'list'; } })(),
     saleSort: (function () { try { return localStorage.getItem('hqSaleSort') || 'price'; } catch (e) { return 'price'; } })(),
     shortlist: [], shortAdded: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
@@ -108,6 +112,7 @@
     return (l._vs = r);
   }
   function belowOf(c) {             // the condo's biggest gap among the units shown, if one is 5%+ below: {pct, l, vs, count, check}
+    if (!c || c.gone) return null;    // a gone listing's asking price is a memory: nothing to compare (15 Nov)
     var best = null, count = 0;
     shown(c).forEach(function (l) {
       var v = vsSimilar(l, c);
@@ -126,7 +131,7 @@
   var STALE_DAYS = 10;              // a PropertyGuru listing the robot hasn't seen for this long may be sold (3 Nov: robot nightly again)
   function daysAgo(d) { return d ? (Date.now() - new Date(d + 'T00:00:00').getTime()) / 864e5 : Infinity; }
   function visible(l) {
-    var f = S.filters, c = S.condos[l.condo];
+    var f = S.filters, c = condoOf(l.condo);
     if (f.min && (l.price == null || l.price < f.min)) return false;
     if (f.max && (l.price == null || l.price > f.max)) return false;
     if (f.sizeMin && (l.size == null || l.size < f.sizeMin)) return false;
@@ -159,9 +164,31 @@
   }
 
 
+  // 15 Nov: grouping is done twice — once for what's for sale, once for the listings the newest full run
+  // didn't see. The second lot used to be thrown away at load, which is why a sold condo on the shortlist
+  // was a dead row with nothing to open. Same function, so a gone condo's card is built from the same
+  // shape as a live one.
   function buildCondos() {
+    S.condos = groupCondos(S.listings);
+    S.gone = groupCondos(S.goneList);
+    Object.keys(S.gone).forEach(function (k) {
+      var g = S.gone[k];
+      g.gone = true;
+      g.seen = g.units.reduce(function (s, l) { return (l.scrapedOn || '') > s ? l.scrapedOn : s; }, '');
+      // A listing can also vanish simply because it costs more than the robots now collect (the cap went
+      // back to S$2M on 8 Nov). That one is still for sale, so it must never read as sold.
+      g.overCap = g.units.every(function (l) { return l.price != null && l.price > PRICE_CAP; });
+    });
+    var dens = Object.keys((S.meta.census || {}).subzones || {}).map(function (k) { return S.meta.census.subzones[k].perKm2; })
+      .filter(function (v) { return v != null; }).sort(function (a, b) { return a - b; });
+    [S.condos, S.gone].forEach(function (set) {
+      Object.keys(set).forEach(function (k) { set[k].score = condoScore(set[k], dens); });
+    });
+  }
+
+  function groupCondos(listings) {
     var c = {};
-    S.listings.forEach(function (l) {
+    (listings || []).forEach(function (l) {
       var x = c[l.condo] || (c[l.condo] = { key: l.condo, name: l.name, units: [] });
       x.units.push(l);
     });
@@ -184,11 +211,10 @@
       x.subzone = mode(u.map(function (l) { return l.subzone || null; }));
       x.units.sort(function (a, b) { return (a.price || 9e9) - (b.price || 9e9); });
     });
-    S.condos = c;
-    var dens = Object.keys((S.meta.census || {}).subzones || {}).map(function (k) { return S.meta.census.subzones[k].perKm2; })
-      .filter(function (v) { return v != null; }).sort(function (a, b) { return a - b; });
-    Object.keys(c).forEach(function (k) { c[k].score = condoScore(c[k], dens); });
+    return c;
   }
+
+  function condoOf(key) { return S.condos[key] || S.gone[key] || null; }
 
   // ---- scoring (rules agreed with Daniel, 24 Oct) ---------------------------------
   // Straight lines between the given [value, score] points; outside them the end score holds.
@@ -210,7 +236,7 @@
   function leaseKnown(c) { return !!(c.ura && c.ura.leaseYears && c.ura.leaseStart); }
   // Typical $psf: asking prices of the units for sale, else URA sales of the last 12 months
   function condoPsf(c) {
-    var ask = median(c.units.map(function (l) { return l.psf; }));
+    var ask = c.gone ? null : median(c.units.map(function (l) { return l.psf; }));   // gone: URA sales only (15 Nov)
     if (ask) return { psf: ask, from: 'asking' };
     var u = c.ura, cut = new Date(); cut.setMonth(cut.getMonth() - 12);
     var since = cut.toISOString().slice(0, 7);
@@ -256,7 +282,7 @@
   function scoreTag(c) { return c.score && c.score.total != null ? '<small class="sc">Score ' + c.score.total + '</small>' : ''; }
   function metresText(m) { return m >= 1000 ? (m / 1000).toFixed(1) + ' km' : m + ' m'; }
 
-  function shown(condo) { return condo.units.filter(visible); }
+  function shown(condo) { return condo.gone ? condo.units : condo.units.filter(visible); }
   function areaListings(id) { return S.listings.filter(function (l) { return l.area === id && visible(l); }); }
 
   function areaStats(id) {
@@ -651,10 +677,10 @@
   // Hovering a pin shows its name even when zoomed out.
   var LABEL_ZOOM = 15;
   function pinIcon(key) {
-    var c = S.condos[key];
+    var c = condoOf(key) || { name: '' };
     var star = S.shortlist.indexOf(key) >= 0;
     var sel = S.panel && S.panel.condo === key;
-    var cls = 'pin' + (star ? ' star' : '') + (sel ? ' selected' : '');
+    var cls = 'pin' + (star ? ' star' : '') + (sel ? ' selected' : '') + (c.gone ? ' gonepin' : '');
     var b = S.belowOn && belowOf(c), bl = '';
     if (b) {
       cls += b.check ? ' bcheck' : (b.pct <= -BELOW.well ? ' below2' : ' below');
@@ -716,6 +742,20 @@
   }
 
   function refreshPin(key) { if (key && markers[key]) { markers[key].setIcon(pinIcon(key)); placePin(key); declutter(); } }
+
+  // A gone condo is deliberately off the map, so it has no pin in the cache. While its card is open it
+  // gets a temporary grey one on selLayer, so you can see WHERE the thing you're reading about is (15 Nov).
+  var goneMarker = null;
+  function showGonePin() {
+    if (!selLayer) return;
+    if (goneMarker) { selLayer.removeLayer(goneMarker); goneMarker = null; }
+    var key = S.panel && S.panel.type === 'condo' && S.panel.condo;
+    var c = key && S.gone[key];
+    if (!c || c.lat == null) return;
+    goneMarker = L.marker([c.lat, c.lng], { icon: pinIcon(key), condoKey: key, title: c.name });
+    selLayer.addLayer(goneMarker);
+    goneMarker.setZIndexOffset(1000);
+  }
 
   // The open condo's pin sits on its own layer, so it's never folded into a number bubble (fixed 27 Oct)
   function placePin(key) {
@@ -848,7 +888,7 @@
   }
 
   function openCondo(key, opts) {
-    var c = S.condos[key];
+    var c = condoOf(key);
     if (!c) return;
     var prev = S.panel && S.panel.condo, wasFull = S.panel && S.panel.m === 'full';
     S.panel = { type: 'condo', condo: key, area: c.area, tab: 'summary', allSales: false, allRent: false,
@@ -856,6 +896,7 @@
     if (phone()) setLeft(false);
     refreshPin(prev);
     refreshPin(key);
+    showGonePin();
     if (c.lat != null && !M) showOnMap(c, opts && opts.fly);
     hidePeek();
     renderPanel();
@@ -881,6 +922,7 @@
     var prev = S.panel && S.panel.condo;
     S.panel = null;
     refreshPin(prev);
+    showGonePin();                 // takes the temporary grey pin away again
     renderPanel();
     restyle();
     renderShortlist();
@@ -936,7 +978,7 @@
     placeLayer.clearLayers();
     var legend = $('placeLegend');
     if (!S.panel || !S.places) { if (legend) legend.hidden = true; return; }
-    var c = S.panel.type === 'condo' ? S.condos[S.panel.condo] : null;
+    var c = S.panel.type === 'condo' ? condoOf(S.panel.condo) : null;
     var a = S.areas[S.panel.area], geom = a && a.layer && a.layer.feature && a.layer.feature.geometry;
     if (c && c.lat == null) c = null;
     if (!c && !geom) { if (legend) legend.hidden = true; return; }
@@ -1044,13 +1086,13 @@
       el.id = 'factStrip'; el.className = 'fact-strip'; el.hidden = true;
       bottomLeft().appendChild(el);
     }
-    var open = !M && S.panel && S.panel.type === 'condo' && S.condos[S.panel.condo];
+    var open = !M && S.panel && S.panel.type === 'condo' && condoOf(S.panel.condo);
     // It is a convenience, not the only place these numbers live — they are all on the card behind it.
     // So when the window is narrow, or the shortlist is open beside it, drop the strip rather than let
     // its three cards squeeze until the words wrap.
     if (open && roomForStrip() < STRIP_NEEDS) open = false;
     if (!open) { el.hidden = true; return; }
-    var c = S.condos[S.panel.condo], units = shown(c);
+    var c = condoOf(S.panel.condo), units = shown(c);
     if (!units.length) units = c.units;
     if (!units.length) { el.hidden = true; return; }
 
@@ -1165,7 +1207,7 @@
     if (M) return mSheet();
     var el = $('detail');
     if (!S.panel) { el.classList.remove('open'); el.setAttribute('aria-hidden', 'true'); declutter(); factStrip(); return; }
-    el.innerHTML = S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(S.condos[S.panel.condo]);
+    el.innerHTML = S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(condoOf(S.panel.condo));
     el.classList.add('open');
     el.setAttribute('aria-hidden', 'false');
     el.querySelector('.card-body').scrollTop = 0;
@@ -1173,7 +1215,7 @@
     setTimeout(function () { declutter(); factStrip(); }, 520);   // again once the map has landed and
                                                                   // the card has finished sliding in
     factStrip();
-    if (S.panel.type === 'condo') loadGoogle(S.condos[S.panel.condo]);
+    if (S.panel.type === 'condo') loadGoogle(condoOf(S.panel.condo));
   }
 
   function areaCondos(id) {
@@ -1493,6 +1535,26 @@
     return '<div class="empty">No listings here' + (S.listings.some(function (l) { return l.area === id; }) ? ' with these filters.' : ' yet.') + '</div>';
   }
 
+  // Why a condo is no longer in the listings, in one place: the card banner, the laptop shortlist rows and
+  // the phone rows all read from this, so they can never disagree (15 Nov).
+  function goneWhy(c) {
+    if (!c || !c.gone) return null;
+    var seen = c.seen ? ' Last seen ' + shortDate(c.seen) + '.' : '';
+    if (c.overCap) return { tag: 'Above your price limit', warn: true,
+      text: 'Still for sale, but the robots now only collect listings under ' + money(PRICE_CAP) +
+        ', so it dropped out of the search.' + seen };
+    return { tag: 'No longer listed', warn: false,
+      text: 'Sold or taken down — the latest full run of the property sites did not see it.' + seen +
+        ' Kept here so you can look back at it.' };
+  }
+
+  function goneBanner(c) {
+    var g = goneWhy(c);
+    if (!g) return '';
+    return '<div class="box gonebox' + (g.warn ? ' warn' : '') + '"><span class="eyebrow">' + esc(g.tag) + '</span>' +
+      '<div class="gonetext">' + esc(g.text) + '</div></div>';
+  }
+
   function condoHtml(c) {
     var a = S.areas[c.area] || {}, units = shown(c);
     if (!units.length) units = c.units;          // filtered out, but still show what we have
@@ -1503,9 +1565,10 @@
       '<button type="button" class="icon-btn" data-action="close" aria-label="Close">×</button></div>' +
       '<div class="head-row" style="align-items:flex-start"><div><div class="title">' + esc(c.name) + (c.ec ? '<span class="badge">EC</span>' : '') + '<span id="gRating" class="g-rating">' + googleRating(c) + '</span></div>' +
       '<div class="sub">' + esc([c.address, a.name, c.district].filter(Boolean).join(' · ')) + '</div></div></div>' +
-      tabButtons([['summary', 'Summary'], ['nearby', 'Nearby'], ['prices', 'Prices'], ['sale', 'For sale <span class="n">' + groups.length + '</span>']], tab) +
+      tabButtons([['summary', 'Summary'], ['nearby', 'Nearby'], ['prices', 'Prices'],
+        ['sale', (c.gone ? 'Last asking' : 'For sale') + ' <span class="n">' + groups.length + '</span>']], tab) +
       '</div></div>' +
-      '<div class="card-body">' + (tab === 'sale' ? saleTab(c, groups) : (tab === 'prices' ? uraSalesBlock(c) + rentTab(c, units) :
+      '<div class="card-body">' + goneBanner(c) + (tab === 'sale' ? saleTab(c, groups) : (tab === 'prices' ? uraSalesBlock(c) + rentTab(c, units) :
         (tab === 'nearby' ? nearbyBlock(c) + neighbourhoodBlock(c) : condoSummary(c, units, groups)))) + '</div>' + dock(c, units, star);
   }
 
@@ -1572,9 +1635,10 @@
     var rh = rushOf(nb);
     var drive = (nb.drive ? '<b>' + nb.drive.min + ' min</b>drive to VivoCity' : '<b>—</b>' + (S.meta.onemapLogin ? 'drive time not available' : 'drive needs the OneMap login')) + key +
       (rh && rh.am ? '<span class="rush">~' + rh.am.min + ' min at 8:30am</span>' : '');
-    return '<div class="box hero"><span class="lab">Asking from</span>' +
+    return '<div class="box hero' + (c.gone ? ' wasbox' : '') + '"><span class="lab">' + (c.gone ? 'Last asking' : 'Asking from') + '</span>' +
       '<div class="money">' + (price ? full(price) : '—') + '</div>' +
-      '<div class="pills"><span class="pill">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') + ' for sale</span>' +
+      '<div class="pills"><span class="pill">' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') +
+      (c.gone ? ' last seen' + (c.seen ? ' ' + shortDate(c.seen) : '') : ' for sale') + '</span>' +
       (lease ? '<span class="pill">' + esc(lease) + (c.built ? ' · ' + esc(c.built) : '') + '</span>' : '') +
       (drops ? '<span class="pill up">▼ ' + drops + ' price drop' + (drops === 1 ? '' : 's') + '</span>' : '') +
       (belowOf(c) ? '<span class="pill ' + (belowOf(c).check ? 'warnpill' : 'up') + '" title="' + esc(belowNote(belowOf(c)).replace(/<[^>]+>/g, '')) + '">' + belowText(belowOf(c)) + '</span>' : '') + '</div>' +
@@ -1585,9 +1649,11 @@
   // Floating action bar at the bottom of the condo card (all tabs)
   function dock(c, units, star) {
     var cheapest = units[0], plan = units.filter(function (l) { return l.floorplan; })[0];
+    // Gone: the link is kept (sometimes the page is still up) but it is labelled, so a dead page is no surprise.
+    var open = c.gone ? 'Old listing ↗' : 'Open listing ↗';
     return '<div class="dock"><button type="button" class="' + (star ? 'dark' : '') + '" data-action="star" aria-pressed="' + star + '">' + (star ? '★ Shortlist' : '☆ Shortlist') + '</button>' +
       '<a href="' + esc(plan ? plan.floorplan : cheapest.url) + '" target="_blank" rel="noopener">Floor plan' + (plan ? '' : '<span class="wide-only"> on ' + esc(cheapest.source) + '</span>') + '</a>' +
-      '<a href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">Open listing ↗</a></div>';
+      '<a href="' + esc(cheapest.url) + '" target="_blank" rel="noopener"' + (c.gone ? ' title="This page may have been taken down"' : '') + '>' + open + '</a></div>';
   }
 
   function metres(m) { return m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m / 10) * 10 + ' m'; }
@@ -1935,7 +2001,7 @@
     var t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.mfull) { S.panel.tab = t.dataset.mfull; return mSetMode('full'); }         // phone: area preview → full page
-    if (t.dataset.maction === 'onmap') { var oc = S.condos[S.panel.condo]; mGoTab('map', true); S.panel.m = 'peek'; renderPanel(); return oc.lat != null && showOnMap(oc, true); }
+    if (t.dataset.maction === 'onmap') { var oc = condoOf(S.panel.condo); mGoTab('map', true); S.panel.m = 'peek'; renderPanel(); return oc.lat != null && showOnMap(oc, true); }
     if (t.dataset.action === 'close') closePanel();
     else if (t.dataset.action === 'back') openArea(S.panel.area, 'condos');
     else if (t.dataset.action === 'star') { var y4 = $('detail').querySelector('.card-body').scrollTop; toggleShort(S.panel.condo); $('detail').querySelector('.card-body').scrollTop = y4; }
@@ -2033,7 +2099,7 @@
       key = box.dataset.unit; moved = false;
       timer = setTimeout(function () {
         timer = null;
-        if (!moved && S.panel && S.panel.condo) unitMenu(S.condos[S.panel.condo], key);
+        if (!moved && S.panel && S.panel.condo) unitMenu(condoOf(S.panel.condo), key);
       }, 450);
     }
     function stop() { if (timer) { clearTimeout(timer); timer = null; } }
@@ -2043,7 +2109,7 @@
     document.addEventListener('pointercancel', stop);
     document.addEventListener('contextmenu', function (e) {          // laptop: right-click
       var box = e.target.closest('.unit[data-unit]');
-      if (box && S.panel && S.panel.condo) { e.preventDefault(); unitMenu(S.condos[S.panel.condo], box.dataset.unit); }
+      if (box && S.panel && S.panel.condo) { e.preventDefault(); unitMenu(condoOf(S.panel.condo), box.dataset.unit); }
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeUnitMenu(); });
   }
@@ -2293,14 +2359,16 @@
         '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') +
         (unitPsf(u[0]) ? '<small class="psf">' + unitPsf(u[0]) + '</small>' : '') + scoreTag(c) + '</span></span></button>';
     }).join('') : (gone.length || lost.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
-      gone.map(function (k) {      // every unit was sold / taken down since: kept, greyed, until you remove it
-        var g = S.gone[k];
+      gone.map(function (k) {      // sold / taken down, or now above the price cap: kept and openable (15 Nov)
+        var g = S.gone[k], why = goneWhy(g);
         return '<div class="list-item gone"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-          '<span><strong>' + esc(g.name) + '</strong><small>No longer listed · last seen ' + esc(shortDate(g.seen)) + '</small></span>' +
+          '<button type="button" class="gone-open" data-condo="' + esc(k) + '">' +
+          '<strong class="nm-1" title="' + esc(g.name) + '">' + esc(g.name) + '</strong>' +
+          '<small>' + esc(why.tag) + (g.seen ? ' · last seen ' + esc(shortDate(g.seen)) : '') + '</small></button>' +
           '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
       }).join('') + lost.map(function (k) {
         return '<div class="list-item gone"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-          '<span><strong>' + esc(keyName(k)) + '</strong><small>Not in the current listings</small></span>' +
+          '<span><strong class="nm-1" title="' + esc(keyName(k)) + '">' + esc(keyName(k)) + '</strong><small>Not in the current listings</small></span>' +
           '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
       }).join('');
     $('shortCount').textContent = all.length + gone.length + lost.length;
@@ -2627,7 +2695,7 @@
     var input = $('search'), box = $('searchResults'), hits = [], hl = 0;
     function render() {
       box.innerHTML = hits.map(function (h, i) {
-        return '<li><button type="button" class="' + (i === hl ? 'hl' : '') + '" data-i="' + i + '">' + esc(h.title) + '<small>' + esc(h.sub) + '</small></button></li>';
+        return '<li><button type="button" class="' + (i === hl ? 'hl' : '') + (h.gone ? ' gonehit' : '') + '" data-i="' + i + '">' + esc(h.title) + '<small>' + esc(h.sub) + '</small></button></li>';
       }).join('') || '<li class="empty" style="padding:8px">No matches</li>';
       box.hidden = false;
     }
@@ -2651,7 +2719,16 @@
         if ((c.name + ' ' + c.address + ' ' + c.mrt).toLowerCase().indexOf(q) >= 0)
           hits.push({ condo: k, title: c.name, sub: [c.address, c.mrt].filter(Boolean).join(' · ') });
       });
-      hits = hits.slice(0, 10);
+      // Gone condos are findable but listed last and labelled, so a search never quietly hands you
+      // something you can't buy (15 Nov, Daniel: typing the name should get you back to it).
+      var goneHits = [];
+      Object.keys(S.gone).forEach(function (k) {
+        var c = S.gone[k];
+        if (S.condos[k]) return;
+        if ((c.name + ' ' + c.address + ' ' + c.mrt).toLowerCase().indexOf(q) >= 0)
+          goneHits.push({ condo: k, title: c.name, sub: goneWhy(c).tag + (c.seen ? ' · last seen ' + shortDate(c.seen) : ''), gone: true });
+      });
+      hits = hits.concat(goneHits).slice(0, 10);
       render();
     });
     input.addEventListener('keydown', function (e) {
@@ -2972,7 +3049,7 @@
     if (!S.panel) return;
     S.panel.m = m;
     renderPanel();
-    var c = S.panel.condo && S.condos[S.panel.condo];
+    var c = S.panel.condo && condoOf(S.panel.condo);
     if (m === 'peek' && c && c.lat != null) showOnMap(c, false);
   }
   function mCover() {             // how much of the map the sheet (or tab bar) covers at the bottom, in px
@@ -3000,14 +3077,14 @@
     var full = S.panel.m === 'full';
     var mapBtn = mTab !== 'map' && S.panel.type === 'condo' ? '<button type="button" class="m-onmap" data-maction="onmap">' + mIcon('pin') + 'Map</button>' : '';
     el.innerHTML = '<div class="m-grab" aria-hidden="true"></div>' + (full ? mapBtn +
-      (S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(S.condos[S.panel.condo])) : mPeekHtml());
+      (S.panel.type === 'area' ? areaHtml(S.panel.area) : condoHtml(condoOf(S.panel.condo))) : mPeekHtml());
     el.classList.add('open');
     el.classList.toggle('m-full', full); el.classList.toggle('m-peek', !full);
     el.setAttribute('aria-hidden', 'false');
     root.classList.toggle('m-full', full);
     var body = el.querySelector('.card-body');
     if (body) body.scrollTop = 0;
-    if (full && S.panel.type === 'condo') loadGoogle(S.condos[S.panel.condo]);
+    if (full && S.panel.type === 'condo') loadGoogle(condoOf(S.panel.condo));
   }
   function mRing(score) {
     var v = score == null ? 0 : score, len = 2 * Math.PI * 25;
@@ -3031,7 +3108,7 @@
   }
   function mPeekHtml() {
     if (S.panel.type === 'area') return mAreaPeek(S.panel.area);
-    var c = S.condos[S.panel.condo], a = S.areas[c.area] || {}, units = shown(c).length ? shown(c) : c.units;
+    var c = condoOf(S.panel.condo), a = S.areas[c.area] || {}, units = shown(c).length ? shown(c) : c.units;
     var star = S.shortlist.indexOf(c.key) >= 0, nb = c.near || {}, rh = rushOf(nb), groups = sameUnits(units);
     var beds = range(units.map(function (l) { return l.beds; }), function (b) { return b === 0 ? 'studio' : b; });
     var facts = [];
@@ -3045,6 +3122,8 @@
     if (w) facts.push('<span class="m-fact ' + w[1] + '">' + mIcon('alert') + esc(w[0]) + '</span>');
     var bo = belowOf(c);
     if (bo) facts.unshift('<span class="m-fact ' + (bo.check ? 'warn' : 'under') + '">' + belowText(bo) + '</span>');
+    var why = goneWhy(c);
+    if (why) facts.unshift('<span class="m-fact ' + (why.warn ? 'warn' : 'off') + '">' + esc(why.tag) + '</span>');
     var cheapest = units[0];
     // Name and price share ONE row (14 Nov, Daniel: "make the drawer card smaller"). They were two
     // 50px rows plus a gap; side by side they are one, which is most of 306px -> 194px. Nothing is
@@ -3058,16 +3137,17 @@
       // money(), not full(): "$1,299,999" took a whole row on its own and every other screen in
       // HomeQuest already says $1.30M. And the score is a number, not a ring — a ring is a lot of
       // drawing for two digits, and the sheet is the one place where height is scarce.
-      '<div class="m-h2r"><div class="m-price">' + (groups.length > 1 ? '<small>from</small> ' : '') + money(cheapest.price) + '</div>' +
+      '<div class="m-h2r"><div class="m-price">' + (why ? '<small>was</small> ' : (groups.length > 1 ? '<small>from</small> ' : '')) + money(cheapest.price) + '</div>' +
       '<div class="m-h2meta"><span>' + groups.length + ' unit' + (groups.length === 1 ? '' : 's') +
         (beds !== '—' ? ' · ' + beds + ' bed' : '') + '</span>' +
       (c.score && c.score.total != null
         ? '<b>' + Math.round(c.score.total) + '</b><i>SCORE</i>' : '') + '</div></div>' +
       '<button type="button" class="m-x" data-action="close" aria-label="Close">' + mIcon('x') + '</button></div>' +
-      (facts.length ? '<div class="m-facts">' + facts.join('') + '</div>' : '') + (bo ? '<div class="m-under">' + belowNote(bo) + '</div>' : '') +
+      (facts.length ? '<div class="m-facts">' + facts.join('') + '</div>' : '') +
+      (why ? '<div class="m-under">' + esc(why.text) + '</div>' : (bo ? '<div class="m-under">' + belowNote(bo) + '</div>' : '')) +
       // one primary action, one quiet one. Two identical white buttons made you read both to choose.
       '<div class="m-actions"><button type="button" class="m-btn dark" data-action="star" aria-pressed="' + star + '">' +
-      (star ? '★ Shortlisted' : '★ Shortlist') + '</button><a class="m-btn" href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">Open ' + mIcon('ext') + '</a></div>' +
+      (star ? '★ Shortlisted' : '★ Shortlist') + '</button><a class="m-btn" href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">' + (why ? 'Old listing ' : 'Open ') + mIcon('ext') + '</a></div>' +
       // "Swipe up for details" removed: the grabber above already says it, and iOS never labels its
       // own gestures. That line was a whole row of a screen with 48px of map left.
       '</div>';
@@ -3254,8 +3334,12 @@
       return '<div class="m-swipe"><button type="button" class="m-del" data-mrem="' + esc(k) + '">Remove</button>' +
         mItem(S.condos[k], '<span class="m-check' + (on ? ' on' : '') + '" data-msel="' + esc(k) + '" role="checkbox" aria-checked="' + on + '" aria-label="Compare">' + (on ? mIcon('check') : '') + '</span>') + '</div>';
     }).join('') + gone.map(function (k) {
-      var g = S.gone[k];
-      return '<div class="m-item gone"><span class="m-mid"><span class="m-nm nm-1" title="' + esc(g.name) + '">' + esc(g.name) + '</span><span class="m-ar">No longer listed · last seen ' + esc(shortDate(g.seen)) + '</span></span>' +
+      var g = S.gone[k], why = goneWhy(g);
+      // 15 Nov: tapping it opens the card, same as a live condo. data-open is the path mItem already uses,
+      // so it goes through one handler; Remove has to sit outside it, since a button can't hold a button.
+      return '<div class="m-item gone"><button type="button" class="m-gmid" data-open="' + esc(k) + '">' +
+        '<span class="m-nm nm-1" title="' + esc(g.name) + '">' + esc(g.name) + '</span>' +
+        '<span class="m-ar">' + esc(why.tag) + (g.seen ? ' · last seen ' + esc(shortDate(g.seen)) : '') + '</span></button>' +
         '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
     }).join('') + lost.map(function (k) {
       return '<div class="m-item gone"><span class="m-mid"><span class="m-nm nm-1" title="' + esc(keyName(k)) + '">' + esc(keyName(k)) + '</span><span class="m-ar">Not in the current listings</span></span>' +
@@ -3453,14 +3537,11 @@
     });
     Promise.all([api('/api/data'), api('/api/areas'), api('/api/shortlist')]).then(function (r) {
       unpackData(r[0]);
-      // listings the newest full robot run didn't see are sold / taken down: hidden (kept only to label old shortlist items)
+      // Listings the newest full robot run didn't see are sold / taken down. They stay off the map and out
+      // of the counts, but they are KEPT (15 Nov) so a shortlisted condo that has gone can still be opened
+      // and its history read — buildCondos groups them into S.gone.
       S.listings = r[0].listings.filter(function (l) { return !l.gone; });
-      S.gone = {};
-      r[0].listings.forEach(function (l) {
-        if (!l.gone) return;
-        var g = S.gone[l.condo] || (S.gone[l.condo] = { name: l.name, district: l.district, seen: '' });
-        if ((l.scrapedOn || '') > g.seen) g.seen = l.scrapedOn || '';
-      });
+      S.goneList = r[0].listings.filter(function (l) { return l.gone; });
       S.meta = r[0].meta; S.ura = r[0].ura || {}; S.rent = r[0].rent || {}; S.mcst = r[0].mcst || {}; S.nearby = r[0].nearby || {}; S.places = r[0].places || {};
       gotShort(r[2], true);
       SYNC.ready = true;

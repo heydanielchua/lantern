@@ -705,10 +705,38 @@ html.m .fact-strip { display: none; }      /* the phone has the sheet instead */
 .topnav .btn { white-space: nowrap; flex: 0 0 auto; }
 .ftop { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
 .ftop > div > h4:first-child { margin-top: 0; }
-/* shortlisted condo with nothing for sale any more (27 Oct): greyed, with a Remove link */
-.list-item.gone { opacity: 0.6; cursor: default; }
+/* shortlisted condo with nothing for sale any more (27 Oct): greyed, with a Remove link.
+   15 Nov: the row OPENS now, so it is a button and not opacity-dimmed into unreadability. Measured:
+   --muted on the block is 5.74, and opacity 0.6 took it to 2.52 — well under AA's 4.5, which was fine
+   while the row was dead text and is not fine now that it is the way in. The name keeps full contrast
+   and the status line carries the grey instead. */
 .list-item.gone .srow { align-items: center; }
-.list-item.gone .link-btn { margin-left: auto; font-size: 12px; }
+.list-item.gone .link-btn { margin-left: auto; font-size: 12px; flex: 0 0 auto; }
+.gone-open { font: inherit; text-align: left; background: none; border: 0; padding: 0; cursor: pointer;
+  display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; color: var(--ink); }
+.gone-open strong { font-family: var(--name); font-weight: 600; }
+.gone-open small { color: var(--muted); font-size: 12px; }
+.gone-open:active { transform: scale(.985); }
+.list-item.gone .ic { color: var(--faint); }
+
+/* Why it is no longer in the listings, at the top of every tab of its card. */
+.gonebox { background: #f4f4f1; border-color: #e3e2dd; gap: 6px; }
+.gonebox.warn { background: #fff1e0; border-color: #f3dcbe; }
+.gonebox.warn .eyebrow { color: #b45a00; }
+.gonetext { font-size: 13px; color: var(--muted); line-height: 1.45; text-wrap: pretty; }
+.hero.wasbox .money { color: var(--muted); }
+
+/* Its pin, while the card is open: the same shape, drained of colour. */
+.pin.gonepin { background: #8d8c86; }
+
+/* A gone condo in the search list sits last and says why. */
+.search-results .gonehit strong, .search-results .gonehit { color: var(--muted); }
+
+/* Phone: the whole row bar Remove is the tap target. */
+.m-gmid { font: inherit; text-align: left; background: none; border: 0; padding: 0; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; color: var(--ink); }
+.m-gmid:active { transform: scale(.985); }
+.m-fact.off { background: #eceae6; color: var(--muted); }
 /* Typography (5 Nov, from the better-typography skill).
    1: prices and counts change as the map filters, and proportional digits make them jitter sideways.
    2: condo names are long; balance stops a two-line name leaving one word stranded. */
@@ -1047,7 +1075,10 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-rt { flex: none; text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
 .m-pr { font-family: var(--serif); font-size: 21px; }
 .m-sc { font-size: 12px; font-weight: 700; color: var(--up); margin-top: 2px; }
-.m-item.gone { opacity: 0.6; }
+/* 15 Nov: was opacity 0.6, which measured 2.52 on the status line against AA's 4.5, and dimmed a row
+   you can now tap. The row reads normally; the grey is carried by the status line (.m-ar) alone. */
+.m-item.gone { background: #f6f6f3; }
+.m-item.gone .m-ar { color: var(--muted); }
 .m-more { width: 100%; height: 48px; border-radius: 24px; border: 1px solid var(--line); background: #fff; font: 600 15px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); }
 .m-empty { text-align: center; color: var(--muted); padding: 40px 10px; font-size: 15px; line-height: 1.5; }
 .m-check { flex: none; width: 28px; height: 28px; border-radius: 14px; border: 2px solid var(--faint); display: grid; place-items: center; color: #fff; }
