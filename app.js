@@ -3515,11 +3515,110 @@
   }
 
   // ---- start ------------------------------------------------------------------------
+  // ---- drop-down lists (15 Nov, Daniel: "can you fix the UI. make sure it's consistant") ----------------------
+  // Every <select> on the laptop opened the Mac's own menu: dark grey, a blue highlight, the system's type — the one
+  // thing on screen that didn't look like HomeQuest. The <select> itself stays: it keeps the value, shows the chosen
+  // option when closed and fires 'change', so nothing that listens to it changed. Only the list that opens is ours:
+  // the frosted glass of the other pop-ups, Urbanist, the chosen option in true black like the tabs and chips.
+  // One listener covers all twelve, including the area Condos sort that is redrawn with its card.
+  // The phone keeps the iPhone's own picker, which is the right control there.
+  var menu = null;                                   // the open list: { el, sel, hl }
+  function setupMenus() {
+    if (M) return;
+    document.addEventListener('mousedown', function (e) {
+      var sel = e.target.closest && e.target.closest('select');
+      if (sel && !sel.disabled) {
+        e.preventDefault();                          // stops the Mac's own menu (and, on purpose, the focus ring:
+        if (menu && menu.sel === sel) closeMenu(); else openMenu(sel, true);   // a mouse user doesn't need it)
+      } else if (menu && !menu.el.contains(e.target)) closeMenu();
+    }, true);
+    // On the window, in the capture phase, so Escape closes only the list and not the Filters panel behind it.
+    window.addEventListener('keydown', function (e) {
+      var sel = document.activeElement;
+      if (!menu) {
+        if (sel && sel.tagName === 'SELECT' && !M &&
+            (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'F4')) {
+          e.preventDefault(); e.stopPropagation(); openMenu(sel, false);
+        }
+        return;
+      }
+      var n = menu.sel.options.length, k = e.key;
+      if (k === 'Escape') { e.preventDefault(); e.stopPropagation(); var s0 = menu.sel, kb = !menu.byMouse; closeMenu(); if (kb) s0.focus(); return; }
+      if (k === 'Tab') { closeMenu(); return; }
+      if (k === 'Enter' || k === ' ') { e.preventDefault(); e.stopPropagation(); chooseMenu(menu.hl); return; }
+      var step = { ArrowDown: 1, ArrowUp: -1, PageDown: 8, PageUp: -8 }[k];
+      if (step) menu.hl = Math.max(0, Math.min(n - 1, menu.hl + step));
+      else if (k === 'Home') menu.hl = 0;
+      else if (k === 'End') menu.hl = n - 1;
+      else if (k.length === 1 && /\S/.test(k)) {          // type a letter to jump to it
+        for (var j = 1; j <= n; j++) {
+          var i = (menu.hl + j) % n;
+          if (menu.sel.options[i].textContent.trim().toLowerCase().indexOf(k.toLowerCase()) === 0) { menu.hl = i; break; }
+        }
+      } else return;
+      e.preventDefault(); e.stopPropagation();
+      paintMenu(true);
+    }, true);
+    window.addEventListener('resize', function () { closeMenu(); });
+    document.addEventListener('scroll', function (e) { if (menu && !menu.el.contains(e.target)) closeMenu(); }, true);
+  }
+  function openMenu(sel, byMouse) {
+    closeMenu();
+    var el = document.createElement('ul');
+    el.className = 'hq-menu';
+    el.setAttribute('role', 'listbox');
+    if (sel.getAttribute('aria-label')) el.setAttribute('aria-label', sel.getAttribute('aria-label'));
+    el.innerHTML = [].map.call(sel.options, function (o, i) {
+      return '<li role="option" data-i="' + i + '" aria-selected="' + o.selected + '"' + (o.disabled ? ' aria-disabled="true"' : '') + '>' +
+        esc(o.textContent) + '</li>';
+    }).join('');
+    document.body.appendChild(el);
+    var r = sel.getBoundingClientRect(), below = innerHeight - r.bottom - 12, above = r.top - 12;
+    var up = el.offsetHeight > below && above > below;             // no room underneath: open upwards
+    el.style.maxHeight = Math.max(120, Math.min(320, up ? above : below)) + 'px';
+    el.style.minWidth = Math.round(r.width) + 'px';
+    el.style.left = Math.round(Math.max(8, Math.min(r.left, innerWidth - el.offsetWidth - 8))) + 'px';
+    el.style.top = Math.round(up ? r.top - 6 - el.offsetHeight : r.bottom + 6) + 'px';
+    el.addEventListener('mousedown', function (e) { e.preventDefault(); });      // keep the focus on the <select>
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();                                                      // or the Filters panel closes behind it
+      var li = e.target.closest('li[data-i]');
+      if (li && !li.hasAttribute('aria-disabled')) chooseMenu(+li.dataset.i);
+    });
+    el.addEventListener('mousemove', function (e) {
+      var li = e.target.closest('li[data-i]');
+      if (li && +li.dataset.i !== menu.hl) { menu.hl = +li.dataset.i; paintMenu(false); }
+    });
+    menu = { el: el, sel: sel, hl: Math.max(0, sel.selectedIndex), byMouse: !!byMouse };
+    sel.setAttribute('aria-expanded', 'true');
+    paintMenu(true);
+  }
+  function paintMenu(scroll) {
+    [].forEach.call(menu.el.children, function (li, i) { li.classList.toggle('hl', i === menu.hl); });
+    var li = menu.el.children[menu.hl];
+    if (scroll && li) li.scrollIntoView({ block: 'nearest' });
+  }
+  function chooseMenu(i) {
+    var sel = menu.sel, o = sel.options[i], kb = !menu.byMouse;
+    closeMenu();
+    if (kb) sel.focus();                             // keyboard users keep their place; a click leaves no ring behind
+    if (!o || o.disabled || sel.selectedIndex === i) return;
+    sel.selectedIndex = i;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function closeMenu() {
+    if (!menu) return;
+    menu.sel.setAttribute('aria-expanded', 'false');
+    menu.el.remove();
+    menu = null;
+  }
+
   function start() {
     if (M) mSetup();
     setupMap();
     setupFilters();
     setupSearch();
+    setupMenus();
     setupShortlistTools();
     setupTooltips();
     $('btnShortlist').addEventListener('click', function () { setLeft(!$('shortlist').classList.contains('open')); });

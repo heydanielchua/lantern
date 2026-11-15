@@ -52,7 +52,7 @@
    toast. Add any NEW body-level overlay here when you build it. */
 .card, .fact-strip, .place-legend, .topnav, .pop, #compare, #mTabs, .m-side, #mChips, .m-page, .unit-menu,
 .tabs, .dock, .leaflet-control-container,
-.pm-card, .peek, .lightbox, .tooltip, .m-layers, .m-toast {
+.pm-card, .peek, .lightbox, .tooltip, .m-layers, .m-toast, .hq-menu {
   -webkit-user-select: none; -moz-user-select: none; user-select: none;
 }
 /* ONE exception: anything you type in. Nothing else on a card may be selected.
@@ -136,6 +136,21 @@ a { color: var(--ink); text-decoration-color: var(--faint); text-underline-offse
 }
 .search-results button:hover, .search-results button.hl { background: var(--soft); }
 .search-results small { color: var(--muted); }
+/* 15 Nov: HomeQuest's own drop-down list for every <select> on the laptop (setupMenus in app.js), in place of the
+   Mac's dark system menu: the same glass as the pop-ups above, the hover of the search results, and the chosen
+   option in true black like a selected tab or chip. It sits on <body>, so it is also in the no-select list. */
+.hq-menu {
+  position: fixed; z-index: 3500; margin: 0; padding: 6px; list-style: none; max-width: 320px; overflow-y: auto;
+  background: rgba(255, 255, 255, 0.94); border: 1px solid var(--edge); border-radius: 16px;
+  box-shadow: 0 18px 40px -18px rgba(40, 40, 40, 0.45); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  font-size: 13px; color: var(--ink); scrollbar-width: none;
+}
+.hq-menu::-webkit-scrollbar { display: none; }
+.hq-menu li { padding: 8px 12px; border-radius: 10px; white-space: nowrap; cursor: pointer; font-variant-numeric: tabular-nums; }
+.hq-menu li + li { margin-top: 2px; }
+.hq-menu li.hl { background: var(--soft); }
+.hq-menu li[aria-selected="true"] { background: var(--accent); color: #fff; font-weight: 600; }
+.hq-menu li[aria-disabled="true"] { color: var(--muted); cursor: default; }
 
 /* ---- map ---- */
 .map-wrap { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
