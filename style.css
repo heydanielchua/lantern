@@ -374,6 +374,19 @@ table.sales td { padding: 5px 6px 5px 0; border-bottom: 1px solid var(--soft); w
 .chip.down { background: #e7f6e6; color: var(--up); }
 .chip.good { background: #e7f6e6; color: var(--up); }
 .chip.bad { background: #fde8e6; color: var(--down); }
+/* 15 Nov, price drops on the shortlist (Daniel chose A + B). A: the drop chip on each shortlisted condo's row. B: the
+   "Since you last looked" strip at the top of the shortlist; its counts are buttons, and a tapped one is true black
+   like any selected chip. */
+.chip.quiet { background: var(--soft); color: var(--muted); }
+.sdrop { display: block; width: fit-content; margin: 4px 0 2px; }
+.since { margin: 0 0 10px; padding: 12px 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--edge);
+  display: flex; flex-direction: column; gap: 8px; }
+.since-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.since-h b { color: var(--ink); font-weight: 700; }
+.since-h .link-btn { font-size: 12px; flex: 0 0 auto; }
+.since-c { display: flex; gap: 6px; flex-wrap: wrap; }
+.since .chip { border: 0; font-family: inherit; cursor: pointer; }
+.since .chip[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .chip.flat { background: var(--soft); color: var(--ink); }
 .vs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .unit .price { font-family: var(--serif); font-weight: 400; font-size: 22px; }
@@ -1254,3 +1267,6 @@ html select:not([multiple]) {
   padding-right: 32px;
 }
 html.m #popMore select:not([multiple]) { padding-right: 36px; background-size: 14px 14px; }
+html.m .since { margin: 4px 0 12px; }
+html.m .since .chip { padding: 7px 12px; font-size: 13px; }     /* a finger needs more than the laptop's 20px chip */
+html.m .since-h, html.m .since-h .link-btn { font-size: 13px; }

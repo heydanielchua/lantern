@@ -170,7 +170,9 @@
   // shape as a live one.
   function buildCondos() {
     S.condos = groupCondos(S.listings);
-    S.gone = groupCondos(S.goneList);
+    // Only condos with NOTHING left for sale (16 Nov). A condo with some units sold and others still listed is an
+    // ordinary condo: putting it here too gave it a second pin, at its sold units' blocks (Daniel's Blue Horizon).
+    S.gone = groupCondos(S.goneList.filter(function (l) { return !S.condos[l.condo]; }));
     Object.keys(S.gone).forEach(function (k) {
       var g = S.gone[k];
       g.gone = true;
@@ -750,7 +752,7 @@
     if (!selLayer) return;
     if (goneMarker) { selLayer.removeLayer(goneMarker); goneMarker = null; }
     var key = S.panel && S.panel.type === 'condo' && S.panel.condo;
-    var c = key && S.gone[key];
+    var c = key && !S.condos[key] && S.gone[key];          // a condo still for sale already has its own pin
     if (!c || c.lat == null) return;
     goneMarker = L.marker([c.lat, c.lng], { icon: pinIcon(key), condoKey: key, title: c.name });
     selLayer.addLayer(goneMarker);
@@ -2339,6 +2341,82 @@
 
   function fromPrice(c) { var u = shown(c).length ? shown(c) : c.units; return u[0].price || 9e9; }     // no price: last
 
+  // ---- price drops on the shortlist (15 Nov, Daniel chose A + B from the mock-up) -----------------------------
+  // A  Each shortlisted condo shows its biggest drop since the robot first saw that unit: "▼ $50k since 22 Oct".
+  // B  A "Since you last looked" strip at the top of the shortlist counts what changed since "Got it" was last
+  //    pressed on this device: price drops, condos no longer listed, new units. Tapping a count shows just those
+  //    condos. Kept per device (localStorage hqSeen, one price per listing link); the very first look only sets
+  //    the starting point, so the strip starts counting from then.
+  var SEEN_KEY = 'hqSeen';
+  function dropOf(c) {
+    if (!c || c.gone) return null;                 // a gone condo's prices are a memory
+    var best = null, n = 0;
+    sameUnits(c.units).forEach(function (g) {
+      var d = priceMove(g);
+      if (d < 0) { n++; if (!best || d < best.d) best = { d: d, on: moved(g).wasOn }; }
+    });
+    return best && { amt: -best.d, on: best.on, n: n };
+  }
+  function dropText(d) { return '▼ ' + money(d.amt) + ' since ' + shortDate(d.on); }
+  function dropTitle(d) {
+    return d.n > 1 ? d.n + ' units have dropped in price; the biggest drop is shown' : 'Asking price dropped since the robot first saw this unit';
+  }
+  function seenLoad() { try { return JSON.parse(localStorage.getItem(SEEN_KEY)); } catch (e) { return null; } }
+  function seenSave(v) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(v)); } catch (e) {} }
+  function seenOf(k) {                              // a shortlisted condo now, in the form kept on this device
+    var c = condoOf(k), u = {};
+    if (!c) return null;
+    if (!c.gone) c.units.forEach(function (l) { if (l.url && l.price != null) u[l.url] = l.price; });
+    return { g: c.gone ? 1 : 0, u: u };
+  }
+  function sinceChanges() {
+    var seen = seenLoad(), wrote = !seen, out = { drop: [], gone: [], fresh: [], units: 0 };
+    seen = seen || {};
+    S.shortlist.forEach(function (k) {
+      var was = seen[k], now = seenOf(k);
+      if (!now) return;
+      if (!was) { seen[k] = now; wrote = true; return; }     // newly shortlisted, or the first look: a starting point
+      if (now.g) { if (!was.g) out.gone.push(k); return; }
+      // New units are counted the way "N for sale" counts them: by beds | size | price, so a flat that several agents
+      // post is one unit, and a new posting of a unit already on sale isn't news.
+      var dropped = false, oldUnits = {}, newUnits = {};
+      condoOf(k).units.forEach(function (l) {
+        var p = l.url ? was.u[l.url] : null, g = [l.beds, l.size, l.price].join('|');
+        if (p == null) newUnits[g] = 1; else { oldUnits[g] = 1; if (l.price < p) dropped = true; }
+      });
+      var fresh = Object.keys(newUnits).filter(function (g) { return !oldUnits[g]; }).length;
+      if (dropped) out.drop.push(k);
+      if (fresh) { out.fresh.push(k); out.units += fresh; }
+    });
+    if (wrote) seenSave(seen);
+    if (S.sinceOnly && !out[S.sinceOnly].length) S.sinceOnly = '';
+    return out;
+  }
+  function sinceGotIt() {
+    var s = {};
+    S.shortlist.forEach(function (k) { var v = seenOf(k); if (v) s[k] = v; });
+    seenSave(s);
+    S.sinceOnly = '';
+  }
+  function sinceHtml(ch) {
+    var bits = [];
+    if (ch.drop.length) bits.push(['drop', 'down', '▼ ' + ch.drop.length + ' price drop' + (ch.drop.length === 1 ? '' : 's')]);
+    if (ch.gone.length) bits.push(['gone', 'quiet', ch.gone.length + ' no longer listed']);
+    if (ch.units) bits.push(['fresh', 'quiet', '+' + ch.units + ' new unit' + (ch.units === 1 ? '' : 's')]);
+    if (!bits.length) return '';
+    var upd = S.meta.updated ? shortDate(S.meta.updated) : '';
+    return '<div class="since"><div class="since-h"><span><b>Since you last looked</b>' + (upd ? ' · listings of ' + esc(upd) : '') + '</span>' +
+      '<button type="button" class="link-btn" data-since-ok>Got it</button></div><div class="since-c">' +
+      bits.map(function (b) {
+        return '<button type="button" class="chip ' + b[1] + '" data-since="' + b[0] + '" aria-pressed="' + (S.sinceOnly === b[0]) + '">' + esc(b[2]) + '</button>';
+      }).join('') + '</div></div>';
+  }
+  function sinceClick(b) {                          // true if the click was the strip's
+    if (b.hasAttribute('data-since-ok')) { sinceGotIt(); renderShortlist(); return true; }
+    if (b.dataset.since) { S.sinceOnly = S.sinceOnly === b.dataset.since ? '' : b.dataset.since; renderShortlist(); return true; }
+    return false;
+  }
+
   function renderShortlist() {
     var all = S.shortlist.filter(function (k) { return S.condos[k]; }), v = S.shortView;
     $('shortCount').textContent = all.length;
@@ -2365,12 +2443,19 @@
       return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || '');
     });
     var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; });
-    var lost = shortLost();
-    $('shortItems').innerHTML = (items.length ? items.map(function (k) {
+    var lost = shortLost(), ch = sinceChanges(), total = all.length + gone.length + lost.length;
+    if (S.sinceOnly) {                                // a count in the strip was tapped: just those condos
+      var only = ch[S.sinceOnly];
+      items = items.filter(function (k) { return only.indexOf(k) >= 0; });
+      gone = gone.filter(function (k) { return only.indexOf(k) >= 0; });
+      lost = [];
+    }
+    $('shortItems').innerHTML = sinceHtml(ch) + (items.length ? items.map(function (k) {
       var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
       var on = S.panel && S.panel.condo === k;
       return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
         '<span><strong class="nm-1" title="' + esc(c.name) + '">' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small>' +
+        (dropOf(c) ? '<span class="chip down sdrop" title="' + esc(dropTitle(dropOf(c))) + '">' + esc(dropText(dropOf(c))) + '</span>' : '') +
         (unitFacts(u[0]) ? '<small class="fx">' + unitFacts(u[0]) + '</small>' : '') + '</span>' +
         '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') +
         (unitPsf(u[0]) ? '<small class="psf">' + unitPsf(u[0]) + '</small>' : '') + scoreTag(c) + '</span></span></button>';
@@ -2387,7 +2472,7 @@
           '<span><strong class="nm-1" title="' + esc(keyName(k)) + '">' + esc(keyName(k)) + '</strong><small>Not in the current listings</small></span>' +
           '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
       }).join('');
-    $('shortCount').textContent = all.length + gone.length + lost.length;
+    $('shortCount').textContent = total;                // the whole shortlist, even while a count is tapped
     $('btnCompare').hidden = all.length < 2;
     if (S.compare) renderCompare();
     if (M) { mBadge(); if (mTab === 'short' || mTab === 'compare') mRender(); }
@@ -3244,12 +3329,13 @@
     var g = S.meta.google && !S.meta.online, src = g ? '/api/google/thumb?condo=' + encodeURIComponent(c.key) : mapThumb(c);
     return src ? '<img src="' + esc(src) + '" alt="" loading="lazy"' + (g && mapThumb(c) ? ' onerror="this.onerror=null;this.src=\'' + esc(mapThumb(c)) + '\'"' : '') + '>' : '<span class="m-noimg"></span>';
   }
-  function mTags(c) {
-    var u = shown(c), out = [], bo = belowOf(c);
+  function mTags(c, short) {
+    var u = shown(c), out = [], bo = belowOf(c), sd = short && dropOf(c);
+    if (sd) out.push([dropText(sd), 'good']);          // Shortlist tab: the drop comes first (15 Nov, A)
     if (bo) out.push(['▼ ' + Math.abs(bo.pct) + '% under URA' + (bo.check ? ' · check' : ''), bo.check ? 'warn' : 'good']);
     if (u.some(function (l) { return daysAgo(l.firstSeen) <= 7; })) out.push(['New', 'good']);
     var drop = Math.min.apply(null, sameUnits(u).map(priceMove).concat([0]));
-    if (drop < 0) out.push(['▼ ' + money(-drop), 'good']);
+    if (drop < 0 && !sd) out.push(['▼ ' + money(-drop), 'good']);
     var w = mWarning(c);
     if (w) out.push(w);
     return out.slice(0, 2).map(function (t) { return '<span class="m-tag ' + t[1] + '">' + esc(t[0]) + '</span>'; }).join('');
@@ -3265,12 +3351,12 @@
   }
   function unitPsf(l) { return l && l.psf ? '$' + n(Math.round(l.psf)) + ' psf' : ''; }
 
-  function mItem(c, lead) {
+  function mItem(c, lead, short) {
     var a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units, k = sameUnits(u).length;
     return '<button type="button" class="m-item" data-open="' + esc(c.key) + '">' + (lead || '') + mThumb(c) +
       '<span class="m-mid"><span class="m-nm nm-1" title="' + esc(c.name) + '">' + esc(c.name) + '</span><span class="m-ar">' + esc([a.name, c.district].filter(Boolean).join(' · ')) +
       ' · ' + k + ' for sale</span>' + (unitFacts(u[0]) ? '<span class="m-fx">' + unitFacts(u[0]) + '</span>' : '') +
-      '<span class="m-tags">' + mTags(c) + '</span></span>' +
+      '<span class="m-tags">' + mTags(c, short) + '</span></span>' +
       '<span class="m-rt"><span class="m-pr">' + money(u[0].price) + '</span>' +
       (unitPsf(u[0]) ? '<span class="m-psf">' + unitPsf(u[0]) + '</span>' : '') +
       (c.score && c.score.total != null ? '<span class="m-sc">Score ' + c.score.total + '</span>' : '') + '</span></button>';
@@ -3344,12 +3430,19 @@
       return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || '');
     });
     mSel = mSel.filter(function (k) { return all.indexOf(k) >= 0; });
-    var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; }), lost = shortLost();
+    var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; }), lost = shortLost(), ch = sinceChanges();
+    var total = all.length + gone.length + lost.length;   // the whole shortlist, even while a count is tapped
+    if (S.sinceOnly) {
+      var only = ch[S.sinceOnly];
+      all = all.filter(function (k) { return only.indexOf(k) >= 0; });
+      gone = gone.filter(function (k) { return only.indexOf(k) >= 0; });
+      lost = [];
+    }
     function chip(v, label) { return '<button type="button" class="m-chip2" data-ms="' + v + '" aria-pressed="' + (mShort.sort === v) + '">' + label + '</button>'; }
     var rows = all.map(function (k) {
       var on = mSel.indexOf(k) >= 0;
       return '<div class="m-swipe"><button type="button" class="m-del" data-mrem="' + esc(k) + '">Remove</button>' +
-        mItem(S.condos[k], '<span class="m-check' + (on ? ' on' : '') + '" data-msel="' + esc(k) + '" role="checkbox" aria-checked="' + on + '" aria-label="Compare">' + (on ? mIcon('check') : '') + '</span>') + '</div>';
+        mItem(S.condos[k], '<span class="m-check' + (on ? ' on' : '') + '" data-msel="' + esc(k) + '" role="checkbox" aria-checked="' + on + '" aria-label="Compare">' + (on ? mIcon('check') : '') + '</span>', true) + '</div>';
     }).join('') + gone.map(function (k) {
       var g = S.gone[k], why = goneWhy(g);
       // 15 Nov: tapping it opens the card, same as a live condo. data-open is the path mItem already uses,
@@ -3362,11 +3455,10 @@
       return '<div class="m-item gone"><span class="m-mid"><span class="m-nm nm-1" title="' + esc(keyName(k)) + '">' + esc(keyName(k)) + '</span><span class="m-ar">Not in the current listings</span></span>' +
         '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
     }).join('');
-    var total = all.length + gone.length + lost.length;
     return '<header class="m-lt"><h1>Shortlist</h1><div class="m-meta">' + total + ' condo' + (total === 1 ? '' : 's') +
       ' · <span class="js-sync" title="' + esc(SYNC.note) + '">' + syncHtml() + '</span></div>' +
       (all.length > 1 ? '<div class="m-chiprow">' + chip('added', 'Newest added') + chip('score', 'Best score') + chip('price', 'Price') + '</div>' : '') + '</header>' +
-      '<div class="m-list">' + (rows ? '<div class="m-group">' + rows + '</div>' : '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo and tap ☆ Shortlist.</div>') + '</div>' +
+      '<div class="m-list">' + sinceHtml(ch) + (rows ? '<div class="m-group">' + rows + '</div>' : '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo and tap ☆ Shortlist.</div>') + '</div>' +
       (all.length > 1 ? '<div class="m-hint">Tick condos to compare · swipe left to remove</div>' : '') +
       (mSel.length >= 2 ? '<button type="button" class="m-fab" data-mcmp>' + mIcon('cols') + 'Compare ' + mSel.length + '</button>' : '');
   }
@@ -3445,6 +3537,7 @@
       if (i >= 0) mSel.splice(i, 1); else mSel.push(k);
       mSaveSel(); return mRender();
     }
+    if (sinceClick(b)) return;
     if (b.dataset.mrem) { var r = b.dataset.mrem; mSel = mSel.filter(function (x) { return x !== r; }); mSaveSel(); return toggleShort(r); }
     if (b.dataset.open) {
       if (mSwipeRows.justSwiped && Date.now() - mSwipeRows.justSwiped < 400) return;
@@ -3646,6 +3739,8 @@
       if (e.target.closest('[data-sync-retry]')) { if (SYNC.dirty) saveShort(); else readShort(); }
     });
     $('shortItems').addEventListener('click', function (e) {
+      var sb = e.target.closest('button[data-since], button[data-since-ok]');
+      if (sb && sinceClick(sb)) return;
       var u = e.target.closest('button[data-unstar]');
       if (u) return toggleShort(u.dataset.unstar);           // a condo with nothing for sale any more
       var b = e.target.closest('button[data-condo]');
