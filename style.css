@@ -1070,9 +1070,11 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .m-sep { flex: none; width: 1px; background: var(--line); margin: 6px 2px; }
 .m-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
 /* For sale: sort buttons, which-site chip, and the press-and-hold menu (9 Nov) */
-.sale-sort { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 12px; padding: 0 2px 2px; }
+/* All four fit the 420px laptop card (17 Nov, Daniel chose "smaller buttons" over shorter words): tighter
+   padding and gap, the text stays 13px. The phone can still swipe the row if a narrow screen needs it. */
+.sale-sort { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 12px; padding: 0 2px 2px; }
 .sale-sort::-webkit-scrollbar { display: none; }
-.sale-sort .m-chip2 { flex: none; height: 32px; font-size: 13px; }
+.sale-sort .m-chip2 { flex: none; height: 32px; padding: 0 10px; font-size: 13px; }
 .unit .posted { color: var(--ink); font-weight: 500; }
 .unit-menu { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center;
   background: rgba(20, 20, 19, 0.34); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
