@@ -1102,7 +1102,9 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .sgroup.on { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .sg-head { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 10px 12px;
   border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
-button.sg-head:hover, .su-main:hover { background: #fff; }
+/* 17 Nov (Daniel: "make sure the hover effect is apply on the button remove"): the whole unit row lights up,
+   Remove included — the white used to stop short of it, which read as two separate things */
+button.sg-head:hover, .su:hover { background: #fff; }
 .sg-head .sc { font-size: 11px; font-weight: 600; color: #2a9a2a; white-space: nowrap; }
 .sgroup.gone .sg-head .ic { background: var(--soft); color: var(--muted); }
 .sg-nm { min-width: 0; }
@@ -1118,7 +1120,7 @@ button.sg-head:hover, .su-main:hover { background: #fff; }
 .su-main .price small { display: block; font-family: Urbanist, Inter, system-ui, sans-serif; font-size: 11px; color: var(--muted); }
 .su-x { flex: none; border: 0; background: none; padding: 0 12px 0 6px; font: 600 12px Urbanist, Inter, system-ui, sans-serif; color: var(--muted);
   text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; cursor: pointer; }
-.su-x:hover { color: var(--ink); }
+.su-x:hover, .su-x:focus-visible { color: var(--ink); text-decoration-color: currentColor; }
 .unit-menu { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center;
   background: rgba(20, 20, 19, 0.34); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
 .unit-menu[hidden] { display: none; }
