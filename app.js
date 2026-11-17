@@ -15,7 +15,7 @@
     listings: [], goneList: [], gone: {}, condos: {}, areas: {}, meta: {},
     condoView: (function () { try { return localStorage.getItem('hqCondoView') || 'list'; } catch (e) { return 'list'; } })(),
     saleSort: (function () { try { return localStorage.getItem('hqSaleSort') || 'price'; } catch (e) { return 'price'; } })(),
-    shortlist: [], shortAdded: {}, shortPrice: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
+    shortlist: [], shortAdded: {}, shortPrice: {}, shortUrls: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
     shortView: { q: '', area: '', beds: 0, sort: 'added' },
     eview: 'all',      // ethnic groups: 'all' residents or 'private' (condo & landed estimate)
     filters: { min: 0, max: 0, sizeMin: 0, sizeMax: 0, psfMin: 0, psfMax: 0, beds: [], floor: [], types: [], tenure: [], lease: [], age: [], baths: [],
@@ -2026,10 +2026,12 @@
       }).join('') + '</div>';
   }
 
-  function ustar(c, l) {            // save this unit's layout to the shortlist (17 Nov)
-    var k = uKey(c.key, l), on = S.shortlist.indexOf(k) >= 0;
+  var ROW_URLS = {};                // shortlist key -> the links of the row its ☆ was drawn on (read when it is saved)
+  function ustar(c, g, saved) {     // save this listing to the shortlist (17 Nov)
+    var k = saved || rowKey(c.key, g), on = !!saved;
+    ROW_URLS[k] = rowUrls(g);
     return '<button type="button" class="ustar" data-ustar="' + esc(k) + '" aria-pressed="' + on + '" title="' +
-      esc((on ? 'On your shortlist: ' : 'Save to your shortlist: ') + unitLabel(uParse(k)) + ' in ' + c.name) + '">' + (on ? '★ Shortlisted' : '☆ Shortlist') + '</button>';
+      esc((on ? 'On your shortlist: ' : 'Save to your shortlist: ') + unitLabel(uParse(k)) + ' at ' + full(g[0].price) + ', ' + c.name) + '">' + (on ? '★ Shortlisted' : '☆ Shortlist') + '</button>';
   }
 
   function saleTab(c, groups) {
@@ -2045,16 +2047,17 @@
       '<div class="head-row"><span class="eyebrow">Units for sale' + tip('Each asking price is compared with URA actual sales in this condo over the past 2 years — similar size (±15%) where there are at least 3 such sales, otherwise all sizes. Red = asking above recent sales, green = below.') + '</span></div>' +
       groups.map(function (g) {
         var l = g[0], v = vsUra(l, c), lvl = (g.filter(function (x) { return x.floor; })[0] || {}).floor;
+        var sv = c.gone ? null : savedRow(c, g);
         var chip = v ? '<span class="chip ' + (v.pct > 5 ? 'up' : (v.pct < -5 ? 'down' : 'flat')) + '">' + (v.pct > 0 ? '+' : '') + v.pct +
           '% vs URA</span>' + tip('URA ' + (v.kind === 'similar-size' ? 'similar-size' : 'all') + ' sales in the last 2 years: typical ' + full(v.psf) + ' psf (' + v.n + ' sales). This unit asks ' + full(l.psf) + ' psf.')
           : '<span class="hint">' + (c.ura ? 'Not enough recent URA sales to compare.' : 'No URA sales to compare with.') + '</span>';
         var floor = l.floorplan ? '<a href="' + esc(l.floorplan) + '" target="_blank" rel="noopener">Floor plan →</a>'
           : '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Floor plan on ' + esc(l.source) + ' →</a>';
-        return '<div class="box unit" data-unit="' + esc(groupKey(g)) + '"><div class="head-row"><strong>' + bedsText(l.beds) + (l.baths ? ' · ' + l.baths + ' bath' : '') + ' · ' +
+        return '<div class="box unit' + (sv && sv === S.panel.focus ? ' mine' : '') + '" data-unit="' + esc(groupKey(g)) + '"><div class="head-row"><strong>' + bedsText(l.beds) + (l.baths ? ' · ' + l.baths + ' bath' : '') + ' · ' +
           (l.size ? l.size.toLocaleString('en-SG') + ' sqft' : '—') + '</strong><span class="price">' + full(l.price) + '</span></div>' +
           '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' +
             postedLine(g) + (l.source === 'PropertyGuru' && daysAgo(l.scrapedOn) > STALE_DAYS ? ', seen ' + esc(shortDate(l.scrapedOn)) + ' — may be sold (not updated)' : '') + '</span></div>' +
-          '<div class="head-row"><div class="vs">' + chip + priceChip(g) + '</div>' + (c.gone ? '' : ustar(c, l)) + '</div>' +
+          '<div class="head-row"><div class="vs">' + chip + priceChip(g) + '</div>' + (c.gone ? '' : ustar(c, g, sv)) + '</div>' +
           '<div class="hint">' + onMarket(g) + '</div>' +
           '<div class="links">' + floor + '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Open listing on ' + esc(l.source) + ' →</a></div></div>';
       }).join('');
@@ -2333,9 +2336,54 @@
   // before (a bare condo key, no '|') are dropped on load and the list saved again: Daniel said "clear it".
   var SYNC = { state: '', note: '', at: null, read: 0, busy: false, again: false, dirty: false, ready: false };
   function uKey(ck, l) { return ck + '|' + (l.beds == null ? 'x' : +l.beds) + '|' + (l.size == null ? 'x' : Math.round(l.size)); }
+  // 17 Nov, later (Daniel: "each listing should be unique, so can i shortlist multiple same bedroom in the condo but they
+  // are from different listing"): a saved unit is ONE LISTING — one For sale row, which can be one flat posted by several
+  // agents. Key "condoKey|beds|size|id", id = a short code made from the row's first link (urlId); the row's links are
+  // kept with the entry (`urls`) and are what it is matched by. Keys with 3 parts are whole layouts, saved earlier that
+  // day; upgradeShort turns each into the cheapest listing of that layout (the one its row showed).
   function uParse(k) {
     var p = String(k).split('|');
-    return p.length === 3 ? { condo: p[0], beds: p[1] === 'x' ? null : +p[1], size: p[2] === 'x' ? null : +p[2] } : null;
+    if (p.length !== 3 && p.length !== 4) return null;
+    return { condo: p[0], beds: p[1] === 'x' ? null : +p[1], size: p[2] === 'x' ? null : +p[2], id: p.length === 4 ? p[3] : null };
+  }
+  function urlId(u) {               // FNV-1a of the link, in base 36. tests/run_checks.py makes the same code
+    var h = 2166136261;
+    for (var i = 0; i < u.length; i++) { h ^= u.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    return h.toString(36);
+  }
+  function rowUrls(g) { return g.map(function (l) { return l.url; }).filter(Boolean).sort(); }
+  function rowKey(ck, g) {
+    var urls = rowUrls(g);
+    return uKey(ck, g[0]) + '|' + (urls.length ? urlId(urls[0]) : 'p' + Math.round(g[0].price || 0));
+  }
+  // The key a For sale row is saved under, if it is saved: by its own key, or by a link it shares with a saved entry
+  // (an agent may have added a posting since, which changes the row's first link)
+  function savedRow(c, g) {
+    var rk = rowKey(c.key, g), urls = rowUrls(g);
+    if (S.shortlist.indexOf(rk) >= 0) return rk;
+    return (shortCondos()[c.key] || []).filter(function (k) {
+      var u = uParse(k), su = S.shortUrls[k] || [];
+      return u.id && urls.some(function (x) { return su.indexOf(x) >= 0 || urlId(x) === u.id; });
+    })[0] || null;
+  }
+  function upgradeKey(k) {
+    var u = uParse(k);
+    if (!u || u.id || !Object.keys(S.condos || {}).length) return k;
+    var nw = unitNow(k), l = nw.live[0] || nw.last;
+    if (!l) return k;                                     // nothing left to pin it to: it stays a layout
+    var g = nw.live.length ? sameUnits(nw.live).filter(function (x) { return x.indexOf(l) >= 0; })[0] : [l];
+    var nk = rowKey(u.condo, g);
+    S.shortAdded[nk] = S.shortAdded[k];
+    if (S.shortPrice[k] != null) S.shortPrice[nk] = S.shortPrice[k];
+    S.shortUrls[nk] = rowUrls(g);
+    return nk;
+  }
+  function upgradeShort() {
+    var out = [];
+    S.shortlist.forEach(function (k) { var nk = upgradeKey(k); if (out.indexOf(nk) < 0) out.push(nk); });
+    if (out.join('\n') === S.shortlist.join('\n')) return false;
+    S.shortlist = out; SYNC.dirty = true; setTimeout(saveShort, 0);
+    return true;
   }
   function sameLayout(l, u) {
     return (l.beds == null ? null : +l.beds) === u.beds && (l.size == null ? null : Math.round(l.size)) === u.size;
@@ -2350,14 +2398,16 @@
     return shortMemo.condos;
   }
   function isShortCondo(ck) { return !!shortCondos()[ck]; }
-  // A saved unit now: the listings of that layout still for sale (cheapest first), and the newest one that has gone
+  // A saved unit now: its listing(s) still for sale (cheapest first), and the newest one that has gone
   function unitNow(k) {
-    var u = uParse(k), c = u && condoOf(u.condo);
+    var u = uParse(k), c = u && condoOf(u.condo), urls = S.shortUrls[k] || [];
     if (!c) return { k: k, u: u, c: null, live: [], last: null };
-    var live = c.gone ? [] : c.units.filter(function (l) { return sameLayout(l, u); });
+    var mine = u.id ? function (l) { return !!l.url && (urls.indexOf(l.url) >= 0 || urlId(l.url) === u.id); }
+      : function (l) { return sameLayout(l, u); };
+    var live = c.gone ? [] : c.units.filter(mine);
     live.sort(function (a, b) { return (a.price == null ? 9e9 : a.price) - (b.price == null ? 9e9 : b.price); });
     var past = (c.gone ? c.units : (S.goneList || []).filter(function (l) { return l.condo === u.condo; }))
-      .filter(function (l) { return sameLayout(l, u); })
+      .filter(mine)
       .sort(function (a, b) { return (b.scrapedOn || '').localeCompare(a.scrapedOn || ''); });
     return { k: k, u: u, c: c, live: live, last: past[0] || null };
   }
@@ -2367,8 +2417,9 @@
   function toggleShort(key) {
     var i = S.shortlist.indexOf(key), u = uParse(key);
     if (!u) return;
-    if (i >= 0) { S.shortlist.splice(i, 1); delete S.shortAdded[key]; delete S.shortPrice[key]; }
+    if (i >= 0) { S.shortlist.splice(i, 1); delete S.shortAdded[key]; delete S.shortPrice[key]; delete S.shortUrls[key]; }
     else {
+      if (ROW_URLS[key]) S.shortUrls[key] = ROW_URLS[key];
       var now = unitNow(key).live[0];
       S.shortlist.push(key); S.shortAdded[key] = new Date().toISOString();
       if (now && now.price != null) S.shortPrice[key] = now.price;
@@ -2389,6 +2440,7 @@
     var items = S.shortlist.map(function (k) {
       var i = { key: k, added: S.shortAdded[k] || '' };
       if (S.shortPrice[k] != null) i.price = S.shortPrice[k];
+      if (S.shortUrls[k] && S.shortUrls[k].length) i.urls = S.shortUrls[k].slice(0, 12);
       return i;
     });
     api('/api/shortlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(items) })
@@ -2413,19 +2465,25 @@
     setSync(Array.isArray(r) ? 'ok' : (r && r.sync) || 'error', r && r.note);
   }
   function adoptShort(items, quiet) {
-    var alias = S.meta.aliases || {}, list = [], added = {}, price = {}, old = 0;   // a condo once named by its address now has its real name
+    var alias = S.meta.aliases || {}, list = [], added = {}, price = {}, urls = {}, old = 0;   // a condo once named by its address now has its real name
     items.forEach(function (i) {
       var u = uParse(i.key);
       if (!u) { old++; return; }                          // a whole condo, saved before 17 Nov: cleared
       var k = alias[u.condo] ? i.key.replace(u.condo + '|', alias[u.condo] + '|') : i.key;
-      if (list.indexOf(k) < 0) { list.push(k); added[k] = i.added; if (typeof i.price === 'number') price[k] = i.price; }
+      if (list.indexOf(k) < 0) {
+        list.push(k); added[k] = i.added;
+        if (typeof i.price === 'number') price[k] = i.price;
+        if (Array.isArray(i.urls)) urls[k] = i.urls.filter(function (x) { return typeof x === 'string'; });
+      }
     });
     if (old) { SYNC.dirty = true; setTimeout(saveShort, 0); }  // ...and saved, so the online copy clears them too
-    var before = S.shortlist, changed = list.length !== before.length || list.some(function (k) { return before.indexOf(k) < 0; });
-    S.shortAdded = added; S.shortPrice = price;
-    if (!changed) return;
+    var before = S.shortlist;
+    S.shortAdded = added; S.shortPrice = price; S.shortUrls = urls;
     S.shortlist = list;
-    if (quiet) return;
+    upgradeShort();                                       // a whole layout from earlier on 17 Nov -> one listing
+    list = S.shortlist;
+    var changed = list.length !== before.length || list.some(function (k) { return before.indexOf(k) < 0; });
+    if (!changed || quiet) return;
     before.concat(list).forEach(function (k) { var u = uParse(k); if (u && markers[u.condo]) markers[u.condo].setIcon(pinIcon(u.condo)); });
     if (pinLayer) pinLayer.refreshClusters();
     declutter();
@@ -2559,8 +2617,10 @@
       return (nw.c.gone ? goneWhy(nw.c).tag : 'No longer listed') + (l && l.price != null ? ' · last asked ' + money(l.price) : '') +
         (l && l.scrapedOn ? ' · seen ' + shortDate(l.scrapedOn) : '');
     }
-    var k = sameUnits(nw.live).length, l0 = nw.live[0];
-    return (k > 1 ? k + ' for sale like this' : '1 for sale') + (l0.psf ? ' · ' + full(l0.psf) + ' psf' : '');
+    var l0 = nw.live[0], lvl = (nw.live.filter(function (x) { return x.floor; })[0] || {}).floor, sites = [];
+    nw.live.forEach(function (x) { if (x.source && sites.indexOf(x.source) < 0) sites.push(x.source); });
+    return [lvl ? lvl + (lvl === 'Penthouse' ? '' : ' floor') : '', l0.psf ? full(l0.psf) + ' psf' : '',
+      (nw.live.length > 1 ? nw.live.length + ' listings on ' : '') + sites.join(' + ')].filter(Boolean).join(' · ');
   }
   // Open a saved unit: its condo, on For sale, showing only that bedroom type
   function openUnit(k) {
@@ -2568,6 +2628,9 @@
     if (!u || !condoOf(u.condo)) return;
     S.saleBeds = { key: u.condo, b: u.beds == null ? 'x' : String(u.beds) };
     openCondo(u.condo, { fly: true, full: !!M, tab: 'sale' });
+    S.panel.focus = k;                                    // ring the saved listing on For sale and bring it into view
+    renderPanel();
+    setTimeout(function () { var e = $('detail').querySelector('.unit.mine'); if (e) e.scrollIntoView({ block: 'center' }); }, 60);
   }
   function shortGroupHtml(g) {
     var c = g.c, a = (c && S.areas[c.area]) || {}, on = S.panel && S.panel.condo === g.ck, name = c ? c.name : keyName(g.ck);
@@ -2580,7 +2643,7 @@
       return '<div class="su' + (live ? '' : ' gone') + '"><button type="button" class="su-main" data-sunit="' + esc(x.k) + '"' + (x.c ? '' : ' disabled') + '>' +
         '<span class="su-l"><strong>' + esc(unitLabel(x.u)) + '</strong><small>' + esc(unitSub(x)) + '</small>' +
         (d ? '<span class="chip down sdrop" title="' + esc(dropTitle(d)) + '">' + esc(dropText(d)) + '</span>' : '') + '</span>' +
-        (live ? '<span class="price">' + money(x.live[0].price) + (sameUnits(x.live).length > 1 ? '<small>from</small>' : '') + '</span>' : '') + '</button>' +
+        (live ? '<span class="price">' + money(x.live[0].price) + '</span>' : '') + '</button>' +
         '<button type="button" class="su-x" data-unstar="' + esc(x.k) + '" aria-label="Remove ' + esc(unitLabel(x.u) + ' at ' + name) + ' from your shortlist">Remove</button></div>';
     }).join('') + '</div>';
   }
@@ -3905,6 +3968,7 @@
       SYNC.read = Date.now();
       if (!S.shortlist.length || phone()) setLeft(false);        // nothing shortlisted yet: just the ★ button
       buildCondos();
+      upgradeShort();                                     // needs the condos: a whole layout saved earlier -> one listing
       drawAreas(r[1]);
       fillDistrictChips();
       applyFilters();
