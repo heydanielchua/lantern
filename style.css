@@ -549,7 +549,7 @@ ul.plain.big li { font-size: 13.5px; margin: 4px 0; }
   background: rgba(255, 255, 255, 0.85); border: 1px solid #fff; box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.3); }
 .dock .dark { background: var(--accent); color: #fff; border-color: var(--accent); }
 .srow { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; width: 100%; }
-.srow .ic { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center;
+.srow .ic, .sg-head .ic { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center;
   justify-content: center; font-size: 13px; }
 
 /* ZIXO chart look (agreed 24 Oct): fade bars, half-circle gauges, thin-line bars; green / coral red / greys */
@@ -791,13 +791,13 @@ html.m .fact-strip { display: none; }      /* the phone has the sheet instead */
 
 /* Apple's fluid-interface rules (5 Nov, from the apple-design skill) — 1: answer the finger at once.
    Every tappable thing dips on press, not on release, so nothing feels dead while it works. */
-.btn, .icon-btn, .link-btn, .list-item, .chip, .pill, .m-btn, .m-chip, .m-chip2, .m-item,
+.btn, .icon-btn, .link-btn, .list-item, .chip, .pill, .m-btn, .m-chip, .m-chip2, .m-item, .bedrow, .ustar, .sg-head, .su-main,
 #mTabs button, .dock button, .seg button, .tip-i {
   -webkit-tap-highlight-color: transparent;
   transition: transform 110ms cubic-bezier(.2, .8, .2, 1), background-color 140ms ease, opacity 140ms ease;
 }
 .btn:active, .icon-btn:active, .link-btn:active, .chip:active, .pill:active,
-.m-btn:active, .m-chip:active, .m-chip2:active, #mTabs button:active, .dock button:active, .seg button:active {
+.m-btn:active, .m-chip:active, .m-chip2:active, .bedrow:active, #mTabs button:active, .dock button:active, .seg button:active {
   transform: scale(0.96);
 }
 .list-item:active, .m-item:active { transform: scale(0.985); }     /* big rows dip less, or it looks rubbery */
@@ -1075,7 +1075,50 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .sale-sort { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 12px; padding: 0 2px 2px; }
 .sale-sort::-webkit-scrollbar { display: none; }
 .sale-sort .m-chip2 { flex: none; height: 32px; padding: 0 10px; font-size: 13px; }
+/* By bedrooms (17 Nov): one row per bedroom type under column headings; each row is a button that filters the list */
+.bedsum { display: flex; flex-direction: column; gap: 2px; margin: -4px 0 18px; }
+.bedrow { display: grid; grid-template-columns: 1.1fr 0.8fr 1fr 1fr; align-items: center; gap: 8px; height: 36px; padding: 0 12px;
+  border: 0; border-radius: 10px; background: none; font: 400 13px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); text-align: left; cursor: pointer; }
+.bedrow:hover { background: rgba(0, 0, 0, 0.04); }
+.bedrow:active { transform: scale(0.985); }   /* a full-width row: a smaller dip than a chip's 0.96 */
+.bedrow > span { white-space: nowrap; }
+.bedrow .bn, .bedrow .bp, .bedrow .bf, .bedhead span:nth-child(n+2) { text-align: right; }
+.bedrow .bd { font-weight: 600; }
+.bedrow .bn, .bedrow .bf { color: var(--muted); }
+.bedrow .bp { font-family: var(--serif); font-size: 16px; }
+.bedrow.bedhead { height: 22px; cursor: default; font-size: 11px; font-weight: 500; color: var(--muted); }
+.bedrow.bedhead:hover { background: none; }
+.bedrow.bedhead:active { transform: none; }
+.bedrow[aria-pressed="true"] { background: var(--accent); }
+.bedrow[aria-pressed="true"] > span { color: #fff; }
 .unit .posted { color: var(--ink); font-weight: 500; }
+/* The shortlist saves units (17 Nov): the ☆ on each unit, and the note shown when ☆ Shortlist sends you here */
+.ustar { flex: none; height: 28px; padding: 0 11px; border-radius: 14px; border: 1px solid var(--line); background: #fff;
+  font: 600 12px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); cursor: pointer; white-space: nowrap; }
+.ustar[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.box.starhint { background: #fff8ec; border-color: #f3dcbe; font-size: 13px; line-height: 1.45; color: var(--ink); text-wrap: pretty; }
+/* Shortlist: one card per condo, its saved units under it (17 Nov) */
+.sgroup { border: 1px solid var(--edge); border-radius: 18px; background: var(--panel); overflow: hidden; flex: none; }
+.sgroup.on { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sg-head { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 10px 12px;
+  border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+button.sg-head:hover, .su-main:hover { background: #fff; }
+.sg-head .sc { font-size: 11px; font-weight: 600; color: #2a9a2a; white-space: nowrap; }
+.sgroup.gone .sg-head .ic { background: var(--soft); color: var(--muted); }
+.sg-nm { min-width: 0; }
+.sg-nm strong { font-family: var(--name); font-weight: 600; }
+.sg-nm small, .su-l small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.su { display: flex; align-items: stretch; border-top: 1px solid var(--line); }
+.su-main { flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 9px 6px 9px 56px;
+  border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.su-main:disabled { cursor: default; }
+.su-l { min-width: 0; }
+.su-l strong { display: block; font-size: 13.5px; font-weight: 600; }
+.su-main .price { font-family: var(--serif); font-size: 18px; white-space: nowrap; text-align: right; }
+.su-main .price small { display: block; font-family: Urbanist, Inter, system-ui, sans-serif; font-size: 11px; color: var(--muted); }
+.su-x { flex: none; border: 0; background: none; padding: 0 12px 0 6px; font: 600 12px Urbanist, Inter, system-ui, sans-serif; color: var(--muted);
+  text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; cursor: pointer; }
+.su-x:hover { color: var(--ink); }
 .unit-menu { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center;
   background: rgba(20, 20, 19, 0.34); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
 .unit-menu[hidden] { display: none; }
@@ -1119,6 +1162,12 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 /* 15 Nov: was opacity 0.6, which measured 2.52 on the status line against AA's 4.5, and dimmed a row
    you can now tap. The row reads normally; the grey is carried by the status line (.m-ar) alone. */
 .m-item.gone { background: #f6f6f3; }
+/* Phone shortlist: units grouped by condo (17 Nov) */
+.m-sgroup .m-shead { display: flex; align-items: center; gap: 12px; padding: 12px 14px 10px; background: #fff; }
+.m-sgroup .m-su { padding: 10px 14px; }
+.m-sgroup .m-item.gone.m-su { gap: 10px; }
+.m-su-nm { font-size: 15px; font-weight: 600; }
+.m-sgroup .m-pr { font-size: 19px; }
 .m-item.gone .m-ar { color: var(--muted); }
 .m-more { width: 100%; height: 48px; border-radius: 24px; border: 1px solid var(--line); background: #fff; font: 600 15px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); }
 .m-empty { text-align: center; color: var(--muted); padding: 40px 10px; font-size: 15px; line-height: 1.5; }

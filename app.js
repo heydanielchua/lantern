@@ -15,7 +15,7 @@
     listings: [], goneList: [], gone: {}, condos: {}, areas: {}, meta: {},
     condoView: (function () { try { return localStorage.getItem('hqCondoView') || 'list'; } catch (e) { return 'list'; } })(),
     saleSort: (function () { try { return localStorage.getItem('hqSaleSort') || 'price'; } catch (e) { return 'price'; } })(),
-    shortlist: [], shortAdded: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
+    shortlist: [], shortAdded: {}, shortPrice: {}, ura: {}, rent: {}, mcst: {}, nearby: {}, google: {}, panel: null, hover: null, peekOff: null,
     shortView: { q: '', area: '', beds: 0, sort: 'added' },
     eview: 'all',      // ethnic groups: 'all' residents or 'private' (condo & landed estimate)
     filters: { min: 0, max: 0, sizeMin: 0, sizeMax: 0, psfMin: 0, psfMax: 0, beds: [], floor: [], types: [], tenure: [], lease: [], age: [], baths: [],
@@ -680,7 +680,7 @@
   var LABEL_ZOOM = 15;
   function pinIcon(key) {
     var c = condoOf(key) || { name: '' };
-    var star = S.shortlist.indexOf(key) >= 0;
+    var star = isShortCondo(key);
     var sel = S.panel && S.panel.condo === key;
     var cls = 'pin' + (star ? ' star' : '') + (sel ? ' selected' : '') + (c.gone ? ' gonepin' : '');
     var b = S.belowOn && belowOf(c), bl = '';
@@ -704,7 +704,7 @@
         iconCreateFunction: function (cluster) {
           var n = cluster.getChildCount(), size = n < 10 ? 30 : (n < 50 ? 36 : 44);
           var kids = cluster.getAllChildMarkers();
-          var star = kids.some(function (m) { return S.shortlist.indexOf(m.options.condoKey) >= 0; });
+          var star = kids.some(function (m) { return isShortCondo(m.options.condoKey); });
           var nb = S.belowOn ? kids.filter(function (m) { return S.condos[m.options.condoKey] && belowOf(S.condos[m.options.condoKey]); }).length : 0;
           return L.divIcon({ className: '', iconSize: [size, size],
             html: '<div class="cluster' + (star ? ' has-star' : '') + (nb ? ' below' : '') + '" style="width:' + size + 'px;height:' + size + 'px">' + n +
@@ -893,7 +893,7 @@
     var c = condoOf(key);
     if (!c) return;
     var prev = S.panel && S.panel.condo, wasFull = S.panel && S.panel.m === 'full';
-    S.panel = { type: 'condo', condo: key, area: c.area, tab: 'summary', allSales: false, allRent: false,
+    S.panel = { type: 'condo', condo: key, area: c.area, tab: (opts && opts.tab) || 'summary', allSales: false, allRent: false,
       m: (opts && opts.full) || wasFull ? 'full' : 'peek' };          // phone: preview card or full page
     if (phone()) setLeft(false);
     refreshPin(prev);
@@ -1534,7 +1534,7 @@
       return shown(y).length - shown(x).length || x.name.localeCompare(y.name);
     });
     var list = condos.map(function (c) {
-      var u = shown(c), star = S.shortlist.indexOf(c.key) >= 0;
+      var u = shown(c), star = isShortCondo(c.key);
       if (S.condoView === 'grid') {
         return '<button type="button" class="thumb" data-condo="' + esc(c.key) + '">' + thumbImg(c) +
           '<span class="thumb-body"><strong>' + (star ? '<span class="star-mark">★</span> ' : '') + esc(c.name) + '</strong>' +
@@ -1576,7 +1576,7 @@
   function condoHtml(c) {
     var a = S.areas[c.area] || {}, units = shown(c);
     if (!units.length) units = c.units;          // filtered out, but still show what we have
-    var star = S.shortlist.indexOf(c.key) >= 0, tab = S.panel.tab;
+    var star = isShortCondo(c.key), tab = S.panel.tab;
     var groups = sameUnits(units);
     return '<div class="card-head"><div class="head-col">' +
       '<div class="head-row">' + (a.name ? '<button type="button" class="btn" data-action="back">← Back to ' + esc(a.name) + '</button>' : '<span></span>') +
@@ -1669,7 +1669,12 @@
     var cheapest = units[0], plan = units.filter(function (l) { return l.floorplan; })[0];
     // Gone: the link is kept (sometimes the page is still up) but it is labelled, so a dead page is no surprise.
     var open = c.gone ? 'Old listing ↗' : 'Open listing ↗';
-    return '<div class="dock"><button type="button" class="' + (star ? 'dark' : '') + '" data-action="star" aria-pressed="' + star + '">' + (star ? '★ Shortlist' : '☆ Shortlist') + '</button>' +
+    // The shortlist saves units (17 Nov): this button shows how many of this condo's are saved, and takes you to For
+    // sale to pick one. The ☆ on each unit there is what saves it.
+    var saved = (shortCondos()[c.key] || []).length;
+    return '<div class="dock"><button type="button" class="' + (saved ? 'dark' : '') + '" data-action="star" aria-pressed="' + !!saved + '"' +
+      ' title="' + (saved ? 'Units of this condo on your shortlist — see them under For sale' : 'Pick a unit under For sale to shortlist it') + '">' +
+      (saved ? '★ ' + saved + ' saved' : '☆ Shortlist') + '</button>' +
       '<a href="' + esc(plan ? plan.floorplan : cheapest.url) + '" target="_blank" rel="noopener">Floor plan' + (plan ? '' : '<span class="wide-only"> on ' + esc(cheapest.source) + '</span>') + '</a>' +
       '<a href="' + esc(cheapest.url) + '" target="_blank" rel="noopener"' + (c.gone ? ' title="This page may have been taken down"' : '') + '>' + open + '</a></div>';
   }
@@ -1991,9 +1996,49 @@
         + 'cannot tell which, so it only counts the listings.');
   }
 
+  // By bedrooms (17 Nov, Daniel chose C): a small table at the top of For sale — one row per bedroom type with how
+  // many are for sale, the cheapest asking price and the cheapest psf. Each row is also a button: tap it to show only
+  // those units, tap it again (or "Show all") for every unit. Counted like the tab's number: one per beds|size|price,
+  // not per agent posting. The choice belongs to one condo; opening another starts on "all".
+  function bedKey(l) { return l.beds == null ? 'x' : String(l.beds); }
+  function bedPick(c, groups) {
+    var b = S.saleBeds && S.saleBeds.key === c.key ? S.saleBeds.b : null;
+    return b != null && groups.some(function (g) { return bedKey(g[0]) === b; }) ? b : null;
+  }
+  function bedSummary(c, groups, pick) {
+    var by = {};
+    groups.forEach(function (g) { var k = bedKey(g[0]); (by[k] = by[k] || []).push(g[0]); });
+    var keys = Object.keys(by).sort(function (x, y) { return (x === 'x' ? 99 : +x) - (y === 'x' ? 99 : +y); });
+    if (keys.length < 2) return '';
+    function low(ls, f) { var v = ls.map(function (l) { return l[f]; }).filter(function (x) { return x != null; }); return v.length ? Math.min.apply(null, v) : null; }
+    return '<div class="head-row"><span class="eyebrow">By bedrooms' + tip('Tap a row to show only those units; tap it again to show them all. Cheapest = the lowest asking price; lowest psf = the lowest price per square foot. They are often two different units.') + '</span>' +
+      (pick != null ? '<button type="button" class="link-btn" data-sbeds="">Show all ' + groups.length + '</button>' : '') + '</div>' +
+      // Column headings, because the cheapest price and the lowest psf are often two different units.
+      '<div class="bedsum"><div class="bedrow bedhead" aria-hidden="true"><span></span><span>For sale</span><span>Cheapest</span><span>Lowest psf</span></div>' +
+      keys.map(function (k) {
+        var ls = by[k], p = low(ls, 'price'), f = low(ls, 'psf');
+        return '<button type="button" class="bedrow" data-sbeds="' + k + '" aria-pressed="' + (pick === k) + '"' +
+          ' aria-label="' + esc((k === 'x' ? 'Bedrooms not given' : bedsText(+k)) + ': ' + ls.length + ' for sale, cheapest ' + full(p) + (f != null ? ', lowest ' + full(f) + ' psf' : '')) + '">' +
+          '<span class="bd">' + (k === 'x' ? 'Not given' : esc(bedsText(+k))) + '</span>' +
+          '<span class="bn">' + ls.length + '</span>' +
+          '<span class="bp">' + money(p) + '</span>' +
+          '<span class="bf">' + (f != null ? full(f) : '—') + '</span></button>';
+      }).join('') + '</div>';
+  }
+
+  function ustar(c, l) {            // save this unit's layout to the shortlist (17 Nov)
+    var k = uKey(c.key, l), on = S.shortlist.indexOf(k) >= 0;
+    return '<button type="button" class="ustar" data-ustar="' + esc(k) + '" aria-pressed="' + on + '" title="' +
+      esc((on ? 'On your shortlist: ' : 'Save to your shortlist: ') + unitLabel(uParse(k)) + ' in ' + c.name) + '">' + (on ? '★ Shortlisted' : '☆ Shortlist') + '</button>';
+  }
+
   function saleTab(c, groups) {
     groups = sortGroups(groups);
-    return '<div class="sale-sort">' + SALE_SORTS.map(function (x) {
+    var pick = bedPick(c, groups), top = bedSummary(c, groups, pick);
+    if (pick != null) groups = groups.filter(function (g) { return bedKey(g[0]) === pick; });
+    var hint = S.panel.starHint && !c.gone ? '<div class="box starhint"><span>Pick the unit you like and press <b>☆ Shortlist</b> on it. ' +
+      'Your shortlist keeps units, so it says which one — a 2-bed or a 3-bed.</span></div>' : '';
+    return hint + top + '<div class="sale-sort">' + SALE_SORTS.map(function (x) {
       return '<button type="button" class="m-chip2" data-ssort="' + x[0] + '" aria-pressed="' +
         (S.saleSort === x[0]) + '">' + x[1] + '</button>';
     }).join('') + '</div>' +
@@ -2009,7 +2054,7 @@
           (l.size ? l.size.toLocaleString('en-SG') + ' sqft' : '—') + '</strong><span class="price">' + full(l.price) + '</span></div>' +
           '<div class="head-row"><span class="hint">' + full(l.psf) + ' psf' + (lvl ? ' · ' + esc(lvl) + (lvl === 'Penthouse' ? '' : ' floor') : '') + ' · ' +
             postedLine(g) + (l.source === 'PropertyGuru' && daysAgo(l.scrapedOn) > STALE_DAYS ? ', seen ' + esc(shortDate(l.scrapedOn)) + ' — may be sold (not updated)' : '') + '</span></div>' +
-          '<div class="vs">' + chip + priceChip(g) + '</div>' +
+          '<div class="head-row"><div class="vs">' + chip + priceChip(g) + '</div>' + (c.gone ? '' : ustar(c, l)) + '</div>' +
           '<div class="hint">' + onMarket(g) + '</div>' +
           '<div class="links">' + floor + '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">Open listing on ' + esc(l.source) + ' →</a></div></div>';
       }).join('');
@@ -2022,7 +2067,17 @@
     if (t.dataset.maction === 'onmap') { var oc = condoOf(S.panel.condo); mGoTab('map', true); S.panel.m = 'peek'; renderPanel(); return oc.lat != null && showOnMap(oc, true); }
     if (t.dataset.action === 'close') closePanel();
     else if (t.dataset.action === 'back') openArea(S.panel.area, 'condos');
-    else if (t.dataset.action === 'star') { var y4 = $('detail').querySelector('.card-body').scrollTop; toggleShort(S.panel.condo); $('detail').querySelector('.card-body').scrollTop = y4; }
+    else if (t.dataset.action === 'star') {          // the shortlist saves units (17 Nov): go and pick one
+      S.panel.tab = 'sale'; S.panel.starHint = true;
+      if (M && S.panel.m !== 'full') return mSetMode('full');
+      renderPanel();
+    }
+    else if (t.dataset.ustar) {
+      var yU = $('detail').querySelector('.card-body').scrollTop;
+      S.panel.starHint = false;
+      toggleShort(t.dataset.ustar);
+      $('detail').querySelector('.card-body').scrollTop = yU;
+    }
     else if (t.dataset.condo) openCondo(t.dataset.condo, { fly: true });
     else if (t.dataset.photo) { openPhoto(+t.dataset.photo); }
     else if (t.dataset.action === 'gprev' || t.dataset.action === 'gnext') {
@@ -2030,6 +2085,13 @@
       if (first) strip.scrollBy({ left: (t.dataset.action === 'gnext' ? 1 : -1) * (first.offsetWidth + 8), behavior: 'smooth' });
     }
     else if (t.dataset.eview) { S.eview = t.dataset.eview; var y3 = $('detail').querySelector('.card-body').scrollTop; renderPanel(); $('detail').querySelector('.card-body').scrollTop = y3; }
+    else if (t.dataset.sbeds != null) {
+      var cur = S.saleBeds && S.saleBeds.key === S.panel.condo ? S.saleBeds.b : null, nb = t.dataset.sbeds;
+      S.saleBeds = { key: S.panel.condo, b: nb === '' || nb === cur ? null : nb };
+      var yB = $('detail').querySelector('.card-body').scrollTop;
+      renderPanel();
+      $('detail').querySelector('.card-body').scrollTop = yB;
+    }
     else if (t.dataset.ssort) {
       S.saleSort = t.dataset.ssort;
       try { localStorage.setItem('hqSaleSort', S.saleSort); } catch (e5) { /* not remembered */ }
@@ -2263,14 +2325,57 @@
   // One shared list (3 Nov): every change waits for the shared copy on GitHub (merged with changes made elsewhere), the
   // Shortlist shows the result ("✓ Synced 11:42 pm" / "Saving…" / "⚠ Not synced — Retry"), and the list is read again
   // when you come back to the page and every 2 minutes — a condo starred on the phone shows on the laptop and the Mac.
+  //
+  // 17 Nov (Daniel chose B, "just unit"): the shortlist saves UNITS, not condos. The sites publish no unit numbers and
+  // one flat is often posted by several agents, so a unit is a LAYOUT in a condo: "condoKey|beds|size" ('x' = not
+  // given). Every listing of that layout matches it and the cheapest is shown. A condo is starred on the map when any
+  // of its units is saved. The price at saving is kept with the entry, for "▼ $20k since you saved it". Entries from
+  // before (a bare condo key, no '|') are dropped on load and the list saved again: Daniel said "clear it".
   var SYNC = { state: '', note: '', at: null, read: 0, busy: false, again: false, dirty: false, ready: false };
+  function uKey(ck, l) { return ck + '|' + (l.beds == null ? 'x' : +l.beds) + '|' + (l.size == null ? 'x' : Math.round(l.size)); }
+  function uParse(k) {
+    var p = String(k).split('|');
+    return p.length === 3 ? { condo: p[0], beds: p[1] === 'x' ? null : +p[1], size: p[2] === 'x' ? null : +p[2] } : null;
+  }
+  function sameLayout(l, u) {
+    return (l.beds == null ? null : +l.beds) === u.beds && (l.size == null ? null : Math.round(l.size)) === u.size;
+  }
+  var shortMemo = { sig: null, condos: {} };
+  function shortCondos() {                  // condo key -> its saved unit keys, in the order they were saved
+    var sig = S.shortlist.join('\n');
+    if (shortMemo.sig !== sig) {
+      shortMemo = { sig: sig, condos: {} };
+      S.shortlist.forEach(function (k) { var u = uParse(k); if (u) (shortMemo.condos[u.condo] = shortMemo.condos[u.condo] || []).push(k); });
+    }
+    return shortMemo.condos;
+  }
+  function isShortCondo(ck) { return !!shortCondos()[ck]; }
+  // A saved unit now: the listings of that layout still for sale (cheapest first), and the newest one that has gone
+  function unitNow(k) {
+    var u = uParse(k), c = u && condoOf(u.condo);
+    if (!c) return { k: k, u: u, c: null, live: [], last: null };
+    var live = c.gone ? [] : c.units.filter(function (l) { return sameLayout(l, u); });
+    live.sort(function (a, b) { return (a.price == null ? 9e9 : a.price) - (b.price == null ? 9e9 : b.price); });
+    var past = (c.gone ? c.units : (S.goneList || []).filter(function (l) { return l.condo === u.condo; }))
+      .filter(function (l) { return sameLayout(l, u); })
+      .sort(function (a, b) { return (b.scrapedOn || '').localeCompare(a.scrapedOn || ''); });
+    return { k: k, u: u, c: c, live: live, last: past[0] || null };
+  }
+  function unitLabel(u) {
+    return u ? [u.beds == null ? '' : bedsText(u.beds), u.size ? n(u.size) + ' sqft' : ''].filter(Boolean).join(' · ') || 'Size not given' : '';
+  }
   function toggleShort(key) {
-    var i = S.shortlist.indexOf(key);
-    if (i >= 0) { S.shortlist.splice(i, 1); delete S.shortAdded[key]; }
-    else { S.shortlist.push(key); S.shortAdded[key] = new Date().toISOString(); }
+    var i = S.shortlist.indexOf(key), u = uParse(key);
+    if (!u) return;
+    if (i >= 0) { S.shortlist.splice(i, 1); delete S.shortAdded[key]; delete S.shortPrice[key]; }
+    else {
+      var now = unitNow(key).live[0];
+      S.shortlist.push(key); S.shortAdded[key] = new Date().toISOString();
+      if (now && now.price != null) S.shortPrice[key] = now.price;
+    }
     SYNC.dirty = true;
     saveShort();
-    refreshPin(key);
+    refreshPin(u.condo);
     if (pinLayer) pinLayer.refreshClusters();
     declutter();
     renderShortlist();
@@ -2281,7 +2386,11 @@
     SYNC.busy = true;
     SYNC.read = Date.now();                               // a save also brings back the latest list
     setSync('saving');
-    var items = S.shortlist.map(function (k) { return { key: k, added: S.shortAdded[k] || '' }; });
+    var items = S.shortlist.map(function (k) {
+      var i = { key: k, added: S.shortAdded[k] || '' };
+      if (S.shortPrice[k] != null) i.price = S.shortPrice[k];
+      return i;
+    });
     api('/api/shortlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(items) })
       .then(function (r) { if (!SYNC.again) { gotShort(r); if (SYNC.state !== 'error') SYNC.dirty = false; } })
       .catch(function () { setSync('error', 'the HomeQuest window on the Mac seems to be closed'); })
@@ -2304,17 +2413,20 @@
     setSync(Array.isArray(r) ? 'ok' : (r && r.sync) || 'error', r && r.note);
   }
   function adoptShort(items, quiet) {
-    var alias = S.meta.aliases || {}, list = [], added = {};      // a condo once named by its address now has its real name
+    var alias = S.meta.aliases || {}, list = [], added = {}, price = {}, old = 0;   // a condo once named by its address now has its real name
     items.forEach(function (i) {
-      var k = alias[i.key] || i.key;
-      if (list.indexOf(k) < 0) { list.push(k); added[k] = i.added; }
+      var u = uParse(i.key);
+      if (!u) { old++; return; }                          // a whole condo, saved before 17 Nov: cleared
+      var k = alias[u.condo] ? i.key.replace(u.condo + '|', alias[u.condo] + '|') : i.key;
+      if (list.indexOf(k) < 0) { list.push(k); added[k] = i.added; if (typeof i.price === 'number') price[k] = i.price; }
     });
+    if (old) { SYNC.dirty = true; setTimeout(saveShort, 0); }  // ...and saved, so the online copy clears them too
     var before = S.shortlist, changed = list.length !== before.length || list.some(function (k) { return before.indexOf(k) < 0; });
-    S.shortAdded = added;
+    S.shortAdded = added; S.shortPrice = price;
     if (!changed) return;
     S.shortlist = list;
     if (quiet) return;
-    before.concat(list).forEach(function (k) { if (markers[k]) markers[k].setIcon(pinIcon(k)); });
+    before.concat(list).forEach(function (k) { var u = uParse(k); if (u && markers[u.condo]) markers[u.condo].setIcon(pinIcon(u.condo)); });
     if (pinLayer) pinLayer.refreshClusters();
     declutter();
     renderShortlist();
@@ -2335,8 +2447,6 @@
     return '';
   }
 
-  // A shortlisted condo is never hidden (3 Nov): one with no listings at all any more (e.g. a source switched off) stays greyed
-  function shortLost() { return S.shortlist.filter(function (k) { return !S.condos[k] && !(S.gone && S.gone[k]); }); }
   function keyName(k) { return String(k).replace(/[-_]+/g, ' ').replace(/\b\w/g, function (ch) { return ch.toUpperCase(); }); }
 
   function fromPrice(c) { var u = shown(c).length ? shown(c) : c.units; return u[0].price || 9e9; }     // no price: last
@@ -2357,17 +2467,30 @@
     });
     return best && { amt: -best.d, on: best.on, n: n };
   }
-  function dropText(d) { return '▼ ' + money(d.amt) + ' since ' + shortDate(d.on); }
+  // A saved unit's biggest drop (17 Nov): since the robot first saw one of its listings ("since 22 Oct"), or since you
+  // saved it — the cheapest of that layout now against the price kept when it was saved ("since you saved it").
+  function unitDrop(nw) {
+    if (!nw.live.length) return null;
+    var best = null, cnt = 0, was = S.shortPrice[nw.k], now = nw.live[0].price;
+    sameUnits(nw.live).forEach(function (g) {
+      var d = priceMove(g);
+      if (d < 0) { cnt++; if (!best || d < best.d) best = { d: d, on: moved(g).wasOn }; }
+    });
+    if (was != null && now != null && now < was && (!best || now - was < best.d)) best = { d: now - was, on: (S.shortAdded[nw.k] || '').slice(0, 10), mine: true };
+    return best && { amt: -best.d, on: best.on, n: cnt, mine: !!best.mine };
+  }
+  function dropText(d) { return '▼ ' + money(d.amt) + (d.mine ? ' since you saved it' : ' since ' + shortDate(d.on)); }
   function dropTitle(d) {
-    return d.n > 1 ? d.n + ' units have dropped in price; the biggest drop is shown' : 'Asking price dropped since the robot first saw this unit';
+    if (d.mine) return 'The cheapest of this layout is ' + money(d.amt) + ' less than when you saved it on ' + shortDate(d.on);
+    return d.n > 1 ? d.n + ' listings of this layout have dropped in price; the biggest drop is shown' : 'Asking price dropped since the robot first saw this listing';
   }
   function seenLoad() { try { return JSON.parse(localStorage.getItem(SEEN_KEY)); } catch (e) { return null; } }
   function seenSave(v) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(v)); } catch (e) {} }
-  function seenOf(k) {                              // a shortlisted condo now, in the form kept on this device
-    var c = condoOf(k), u = {};
-    if (!c) return null;
-    if (!c.gone) c.units.forEach(function (l) { if (l.url && l.price != null) u[l.url] = l.price; });
-    return { g: c.gone ? 1 : 0, u: u };
+  function seenOf(k) {                              // a saved unit now, in the form kept on this device
+    var nw = unitNow(k), u = {};
+    if (!nw.c) return null;
+    nw.live.forEach(function (l) { if (l.url && l.price != null) u[l.url] = l.price; });
+    return { g: nw.live.length ? 0 : 1, u: u };
   }
   function sinceChanges() {
     var seen = seenLoad(), wrote = !seen, out = { drop: [], gone: [], fresh: [], units: 0 };
@@ -2380,7 +2503,7 @@
       // New units are counted the way "N for sale" counts them: by beds | size | price, so a flat that several agents
       // post is one unit, and a new posting of a unit already on sale isn't news.
       var dropped = false, oldUnits = {}, newUnits = {};
-      condoOf(k).units.forEach(function (l) {
+      unitNow(k).live.forEach(function (l) {
         var p = l.url ? was.u[l.url] : null, g = [l.beds, l.size, l.price].join('|');
         if (p == null) newUnits[g] = 1; else { oldUnits[g] = 1; if (l.price < p) dropped = true; }
       });
@@ -2402,7 +2525,7 @@
     var bits = [];
     if (ch.drop.length) bits.push(['drop', 'down', '▼ ' + ch.drop.length + ' price drop' + (ch.drop.length === 1 ? '' : 's')]);
     if (ch.gone.length) bits.push(['gone', 'quiet', ch.gone.length + ' no longer listed']);
-    if (ch.units) bits.push(['fresh', 'quiet', '+' + ch.units + ' new unit' + (ch.units === 1 ? '' : 's')]);
+    if (ch.units) bits.push(['fresh', 'quiet', '+' + ch.units + ' new listing' + (ch.units === 1 ? '' : 's')]);
     if (!bits.length) return '';
     var upd = S.meta.updated ? shortDate(S.meta.updated) : '';
     return '<div class="since"><div class="since-h"><span><b>Since you last looked</b>' + (upd ? ' · listings of ' + esc(upd) : '') + '</span>' +
@@ -2417,63 +2540,82 @@
     return false;
   }
 
+  // The shortlist, grouped by condo (17 Nov, Daniel: units, grouped): the condo once, its saved units under it.
+  function shortGroups() {
+    var cs = shortCondos();
+    return Object.keys(cs).map(function (ck) {
+      var units = cs[ck].map(unitNow);
+      return { ck: ck, c: condoOf(ck), units: units,
+        price: Math.min.apply(null, units.map(function (x) { return x.live.length && x.live[0].price != null ? x.live[0].price : 9e9; })),
+        added: units.reduce(function (s, x) { return (S.shortAdded[x.k] || '') > s ? S.shortAdded[x.k] : s; }, '') };
+    });
+  }
+  function keepUnits(g, ok) { return { ck: g.ck, c: g.c, price: g.price, added: g.added, units: g.units.filter(ok) }; }
+  function liveScore(g) { return g.c && !g.c.gone ? scoreOf(g.c) : -1; }
+  function unitSub(nw) {            // the grey line under a saved unit
+    if (!nw.c) return 'Not in the current listings';
+    if (!nw.live.length) {
+      var l = nw.last;
+      return (nw.c.gone ? goneWhy(nw.c).tag : 'No longer listed') + (l && l.price != null ? ' · last asked ' + money(l.price) : '') +
+        (l && l.scrapedOn ? ' · seen ' + shortDate(l.scrapedOn) : '');
+    }
+    var k = sameUnits(nw.live).length, l0 = nw.live[0];
+    return (k > 1 ? k + ' for sale like this' : '1 for sale') + (l0.psf ? ' · ' + full(l0.psf) + ' psf' : '');
+  }
+  // Open a saved unit: its condo, on For sale, showing only that bedroom type
+  function openUnit(k) {
+    var u = uParse(k);
+    if (!u || !condoOf(u.condo)) return;
+    S.saleBeds = { key: u.condo, b: u.beds == null ? 'x' : String(u.beds) };
+    openCondo(u.condo, { fly: true, full: !!M, tab: 'sale' });
+  }
+  function shortGroupHtml(g) {
+    var c = g.c, a = (c && S.areas[c.area]) || {}, on = S.panel && S.panel.condo === g.ck, name = c ? c.name : keyName(g.ck);
+    var sub = c ? [a.name, c.district].filter(Boolean).join(' · ') + (c.gone ? ' · ' + goneWhy(c).tag : '') : 'Not in the current listings';
+    var inner = '<span class="ic" aria-hidden="true">★</span><span class="sg-nm"><strong class="nm-1" title="' + esc(name) + '">' + esc(name) + '</strong>' +
+      '<small>' + esc(sub) + '</small></span>' + (c && !c.gone ? scoreTag(c) : '<span></span>');
+    var head = c ? '<button type="button" class="sg-head" data-condo="' + esc(g.ck) + '">' + inner + '</button>' : '<div class="sg-head">' + inner + '</div>';
+    return '<div class="sgroup' + (on ? ' on' : '') + (c && !c.gone ? '' : ' gone') + '">' + head + g.units.map(function (x) {
+      var d = unitDrop(x), live = x.live.length;
+      return '<div class="su' + (live ? '' : ' gone') + '"><button type="button" class="su-main" data-sunit="' + esc(x.k) + '"' + (x.c ? '' : ' disabled') + '>' +
+        '<span class="su-l"><strong>' + esc(unitLabel(x.u)) + '</strong><small>' + esc(unitSub(x)) + '</small>' +
+        (d ? '<span class="chip down sdrop" title="' + esc(dropTitle(d)) + '">' + esc(dropText(d)) + '</span>' : '') + '</span>' +
+        (live ? '<span class="price">' + money(x.live[0].price) + (sameUnits(x.live).length > 1 ? '<small>from</small>' : '') + '</span>' : '') + '</button>' +
+        '<button type="button" class="su-x" data-unstar="' + esc(x.k) + '" aria-label="Remove ' + esc(unitLabel(x.u) + ' at ' + name) + ' from your shortlist">Remove</button></div>';
+    }).join('') + '</div>';
+  }
+
   function renderShortlist() {
-    var all = S.shortlist.filter(function (k) { return S.condos[k]; }), v = S.shortView;
-    $('shortCount').textContent = all.length;
+    var v = S.shortView, all = shortGroups(), ch = sinceChanges(), q = v.q.toLowerCase(), total = S.shortlist.length;
     $('shortTools').hidden = all.length < 2;
     // area choices = areas of the shortlisted condos
     var areas = {};
-    all.forEach(function (k) { var a = S.areas[S.condos[k].area]; if (a) areas[a.id] = a.name; });
+    all.forEach(function (g) { var a = g.c && S.areas[g.c.area]; if (a) areas[a.id] = a.name; });
     $('shortArea').innerHTML = '<option value="">All areas</option>' + Object.keys(areas).sort(function (x, y) { return areas[x].localeCompare(areas[y]); })
       .map(function (id) { return '<option value="' + id + '"' + (id === v.area ? ' selected' : '') + '>' + esc(areas[id]) + '</option>'; }).join('');
-    var q = v.q.toLowerCase();
-    var items = all.filter(function (k) {
-      var c = S.condos[k];
-      if (q && (c.name + ' ' + c.address + ' ' + c.mrt).toLowerCase().indexOf(q) < 0) return false;
-      if (v.area && c.area !== v.area) return false;
-      if (v.beds && !c.units.some(function (l) { return (l.beds >= 4 ? 4 : l.beds) === v.beds; })) return false;
-      return true;
+    var only = S.sinceOnly ? ch[S.sinceOnly] : null;           // a count in the strip was tapped: just those units
+    var groups = all.map(function (g) {
+      return keepUnits(g, function (x) {
+        if (v.beds && (x.u.beds == null || (x.u.beds >= 4 ? 4 : x.u.beds) !== v.beds)) return false;
+        return !only || only.indexOf(x.k) >= 0;
+      });
+    }).filter(function (g) {
+      var c = g.c;
+      if (!g.units.length) return false;
+      if (q && (!c || (c.name + ' ' + c.address + ' ' + c.mrt).toLowerCase().indexOf(q) < 0)) return false;
+      return !v.area || (c && c.area === v.area);
     });
-    items.sort(function (x, y) {
-      var a = S.condos[x], b = S.condos[y];
-      if (v.sort === 'priceUp') return fromPrice(a) - fromPrice(b);
-      if (v.sort === 'priceDown') return fromPrice(b) - fromPrice(a);
-      if (v.sort === 'name') return a.name.localeCompare(b.name);
-      if (v.sort === 'score') return scoreOf(b) - scoreOf(a);
-      return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || '');
+    groups.sort(function (x, y) {
+      if (v.sort === 'priceUp') return x.price - y.price;
+      if (v.sort === 'priceDown') return (y.price % 9e9) - (x.price % 9e9);
+      if (v.sort === 'name') return (x.c ? x.c.name : x.ck).localeCompare(y.c ? y.c.name : y.ck);
+      if (v.sort === 'score') return liveScore(y) - liveScore(x);
+      return y.added.localeCompare(x.added);
     });
-    var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; });
-    var lost = shortLost(), ch = sinceChanges(), total = all.length + gone.length + lost.length;
-    if (S.sinceOnly) {                                // a count in the strip was tapped: just those condos
-      var only = ch[S.sinceOnly];
-      items = items.filter(function (k) { return only.indexOf(k) >= 0; });
-      gone = gone.filter(function (k) { return only.indexOf(k) >= 0; });
-      lost = [];
-    }
-    $('shortItems').innerHTML = sinceHtml(ch) + (items.length ? items.map(function (k) {
-      var c = S.condos[k], a = S.areas[c.area] || {}, u = shown(c).length ? shown(c) : c.units;
-      var on = S.panel && S.panel.condo === k;
-      return '<button type="button" class="list-item' + (on ? ' on' : '') + '" data-condo="' + esc(k) + '"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-        '<span><strong class="nm-1" title="' + esc(c.name) + '">' + esc(c.name) + '</strong><small>' + esc([a.name, c.district].filter(Boolean).join(' · ')) + '</small>' +
-        (dropOf(c) ? '<span class="chip down sdrop" title="' + esc(dropTitle(dropOf(c))) + '">' + esc(dropText(dropOf(c))) + '</span>' : '') +
-        (unitFacts(u[0]) ? '<small class="fx">' + unitFacts(u[0]) + '</small>' : '') + '</span>' +
-        '<span class="price">' + money(u[0].price) + (u.length > 1 ? '<small>from</small>' : '') +
-        (unitPsf(u[0]) ? '<small class="psf">' + unitPsf(u[0]) + '</small>' : '') + scoreTag(c) + '</span></span></button>';
-    }).join('') : (gone.length || lost.length ? '' : '<div class="empty">' + (all.length ? 'No shortlisted condos match.' : 'No shortlisted condos yet. Open a condo and press ☆ Shortlist.') + '</div>')) +
-      gone.map(function (k) {      // sold / taken down, or now above the price cap: kept and openable (15 Nov)
-        var g = S.gone[k], why = goneWhy(g);
-        return '<div class="list-item gone"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-          '<button type="button" class="gone-open" data-condo="' + esc(k) + '">' +
-          '<strong class="nm-1" title="' + esc(g.name) + '">' + esc(g.name) + '</strong>' +
-          '<small>' + esc(why.tag) + (g.seen ? ' · last seen ' + esc(shortDate(g.seen)) : '') + '</small></button>' +
-          '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
-      }).join('') + lost.map(function (k) {
-        return '<div class="list-item gone"><span class="srow"><span class="ic" aria-hidden="true">★</span>' +
-          '<span><strong class="nm-1" title="' + esc(keyName(k)) + '">' + esc(keyName(k)) + '</strong><small>Not in the current listings</small></span>' +
-          '<button type="button" class="link-btn" data-unstar="' + esc(k) + '">Remove</button></span></div>';
-      }).join('');
+    $('shortItems').innerHTML = sinceHtml(ch) + (groups.length ? groups.map(shortGroupHtml).join('') :
+      '<div class="empty">' + (total ? 'No shortlisted units match.' : 'No units shortlisted yet. Open a condo, go to For sale and press ☆ Shortlist on the unit you like.') + '</div>');
     $('shortCount').textContent = total;                // the whole shortlist, even while a count is tapped
-    $('btnCompare').hidden = all.length < 2;
+    $('btnCompare').hidden = comparePool().length < 2;
     if (S.compare) renderCompare();
     if (M) { mBadge(); if (mTab === 'short' || mTab === 'compare') mRender(); }
   }
@@ -2533,8 +2675,8 @@
     ['On the market', [['Longest listed', 'days', function (x) { return x != null ? x + ' days' : '—'; }, null]]]
   ];
   function comparePool() {
-    return S.shortlist.filter(function (k) { return S.condos[k]; })
-      .sort(function (x, y) { return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || ''); });     // newest added first
+    return shortGroups().filter(function (g) { return S.condos[g.ck]; })       // condos with a saved unit still for sale
+      .sort(function (x, y) { return y.added.localeCompare(x.added); }).map(function (g) { return g.ck; });     // newest added first
   }
   function openCompare() { S.compare = { keys: comparePool().slice(0, COMPARE_MAX), pick: false }; renderCompare(); }
   function closeCompare() { S.compare = null; $('compare').hidden = true; }
@@ -3211,7 +3353,8 @@
   function mPeekHtml() {
     if (S.panel.type === 'area') return mAreaPeek(S.panel.area);
     var c = condoOf(S.panel.condo), a = S.areas[c.area] || {}, units = shown(c).length ? shown(c) : c.units;
-    var star = S.shortlist.indexOf(c.key) >= 0, nb = c.near || {}, rh = rushOf(nb), groups = sameUnits(units);
+    var star = isShortCondo(c.key), nb = c.near || {}, rh = rushOf(nb), groups = sameUnits(units);
+    var saved = (shortCondos()[c.key] || []).length;
     var beds = range(units.map(function (l) { return l.beds; }), function (b) { return b === 0 ? 'studio' : b; });
     var facts = [];
     if (rh && rh.am) facts.push('<span class="m-fact">' + mIcon('car') + rh.am.min + ' min at 8:30am</span>');
@@ -3249,7 +3392,7 @@
       (why ? '<div class="m-under">' + esc(why.text) + '</div>' : (bo ? '<div class="m-under">' + belowNote(bo) + '</div>' : '')) +
       // one primary action, one quiet one. Two identical white buttons made you read both to choose.
       '<div class="m-actions"><button type="button" class="m-btn dark" data-action="star" aria-pressed="' + star + '">' +
-      (star ? '★ Shortlisted' : '★ Shortlist') + '</button><a class="m-btn" href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">' + (why ? 'Old listing ' : 'Open ') + mIcon('ext') + '</a></div>' +
+      (saved ? '★ ' + saved + ' saved' : '★ Shortlist') + '</button><a class="m-btn" href="' + esc(cheapest.url) + '" target="_blank" rel="noopener">' + (why ? 'Old listing ' : 'Open ') + mIcon('ext') + '</a></div>' +
       // "Swipe up for details" removed: the grabber above already says it, and iOS never labels its
       // own gestures. That line was a whole row of a screen with 48px of map left.
       '</div>';
@@ -3421,45 +3564,40 @@
   }
 
   // ---- Shortlist tab ----
-  function mShortHtml() {
-    var all = S.shortlist.filter(function (k) { return S.condos[k]; });
+  function mShortHtml() {             // units, grouped by condo (17 Nov)
+    var all = shortGroups(), ch = sinceChanges(), total = S.shortlist.length;
     all.sort(function (x, y) {
-      var a = S.condos[x], b = S.condos[y];
-      if (mShort.sort === 'score') return scoreOf(b) - scoreOf(a);
-      if (mShort.sort === 'price') return fromPrice(a) - fromPrice(b);
-      return (S.shortAdded[y] || '').localeCompare(S.shortAdded[x] || '');
+      if (mShort.sort === 'score') return liveScore(y) - liveScore(x);
+      if (mShort.sort === 'price') return x.price - y.price;
+      return y.added.localeCompare(x.added);
     });
-    mSel = mSel.filter(function (k) { return all.indexOf(k) >= 0; });
-    var gone = S.shortlist.filter(function (k) { return !S.condos[k] && S.gone && S.gone[k]; }), lost = shortLost(), ch = sinceChanges();
-    var total = all.length + gone.length + lost.length;   // the whole shortlist, even while a count is tapped
-    if (S.sinceOnly) {
-      var only = ch[S.sinceOnly];
-      all = all.filter(function (k) { return only.indexOf(k) >= 0; });
-      gone = gone.filter(function (k) { return only.indexOf(k) >= 0; });
-      lost = [];
-    }
+    var pool = comparePool();
+    mSel = mSel.filter(function (k) { return pool.indexOf(k) >= 0; });
+    var only = S.sinceOnly ? ch[S.sinceOnly] : null;
+    var groups = all.map(function (g) { return keepUnits(g, function (x) { return !only || only.indexOf(x.k) >= 0; }); })
+      .filter(function (g) { return g.units.length; });
     function chip(v, label) { return '<button type="button" class="m-chip2" data-ms="' + v + '" aria-pressed="' + (mShort.sort === v) + '">' + label + '</button>'; }
-    var rows = all.map(function (k) {
-      var on = mSel.indexOf(k) >= 0;
-      return '<div class="m-swipe"><button type="button" class="m-del" data-mrem="' + esc(k) + '">Remove</button>' +
-        mItem(S.condos[k], '<span class="m-check' + (on ? ' on' : '') + '" data-msel="' + esc(k) + '" role="checkbox" aria-checked="' + on + '" aria-label="Compare">' + (on ? mIcon('check') : '') + '</span>', true) + '</div>';
-    }).join('') + gone.map(function (k) {
-      var g = S.gone[k], why = goneWhy(g);
-      // 15 Nov: tapping it opens the card, same as a live condo. data-open is the path mItem already uses,
-      // so it goes through one handler; Remove has to sit outside it, since a button can't hold a button.
-      return '<div class="m-item gone"><button type="button" class="m-gmid" data-open="' + esc(k) + '">' +
-        '<span class="m-nm nm-1" title="' + esc(g.name) + '">' + esc(g.name) + '</span>' +
-        '<span class="m-ar">' + esc(why.tag) + (g.seen ? ' · last seen ' + esc(shortDate(g.seen)) : '') + '</span></button>' +
-        '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
-    }).join('') + lost.map(function (k) {
-      return '<div class="m-item gone"><span class="m-mid"><span class="m-nm nm-1" title="' + esc(keyName(k)) + '">' + esc(keyName(k)) + '</span><span class="m-ar">Not in the current listings</span></span>' +
-        '<button type="button" class="m-chip2" data-mrem="' + esc(k) + '">Remove</button></div>';
+    var rows = groups.map(function (g) {
+      var c = g.c, a = (c && S.areas[c.area]) || {}, live = c && !c.gone, on = mSel.indexOf(g.ck) >= 0, name = c ? c.name : keyName(g.ck);
+      var head = '<div class="m-shead">' + (live && pool.length > 1 ? '<span class="m-check' + (on ? ' on' : '') + '" data-msel="' + esc(g.ck) +
+          '" role="checkbox" aria-checked="' + on + '" aria-label="Compare ' + esc(name) + '">' + (on ? mIcon('check') : '') + '</span>' : '') +
+        '<button type="button" class="m-gmid" data-open="' + esc(g.ck) + '"' + (c ? '' : ' disabled') + '><span class="m-nm nm-1" title="' + esc(name) + '">' + esc(name) + '</span>' +
+        '<span class="m-ar">' + esc(c ? [a.name, c.district].filter(Boolean).join(' · ') + (c.gone ? ' · ' + goneWhy(c).tag : '') : 'Not in the current listings') + '</span></button></div>';
+      return '<div class="m-group m-sgroup">' + head + g.units.map(function (x) {
+        var d = unitDrop(x), lv = x.live.length;
+        var mid = '<span class="m-mid"><span class="m-su-nm">' + esc(unitLabel(x.u)) + '</span><span class="m-ar">' + esc(unitSub(x)) + '</span>' +
+          (d ? '<span class="m-tags"><span class="m-tag good" title="' + esc(dropTitle(d)) + '">' + esc(dropText(d)) + '</span></span>' : '') + '</span>';
+        if (!lv) return '<div class="m-item gone m-su"><button type="button" class="m-gmid" data-munit="' + esc(x.k) + '">' + mid + '</button>' +
+          '<button type="button" class="m-chip2" data-mrem="' + esc(x.k) + '">Remove</button></div>';
+        return '<div class="m-swipe"><button type="button" class="m-del" data-mrem="' + esc(x.k) + '">Remove</button>' +
+          '<button type="button" class="m-item m-su" data-munit="' + esc(x.k) + '">' + mid + '<span class="m-rt"><span class="m-pr">' + money(x.live[0].price) + '</span></span></button></div>';
+      }).join('') + '</div>';
     }).join('');
-    return '<header class="m-lt"><h1>Shortlist</h1><div class="m-meta">' + total + ' condo' + (total === 1 ? '' : 's') +
+    return '<header class="m-lt"><h1>Shortlist</h1><div class="m-meta">' + total + ' unit' + (total === 1 ? '' : 's') +
       ' · <span class="js-sync" title="' + esc(SYNC.note) + '">' + syncHtml() + '</span></div>' +
       (all.length > 1 ? '<div class="m-chiprow">' + chip('added', 'Newest added') + chip('score', 'Best score') + chip('price', 'Price') + '</div>' : '') + '</header>' +
-      '<div class="m-list">' + sinceHtml(ch) + (rows ? '<div class="m-group">' + rows + '</div>' : '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo and tap ☆ Shortlist.</div>') + '</div>' +
-      (all.length > 1 ? '<div class="m-hint">Tick condos to compare · swipe left to remove</div>' : '') +
+      '<div class="m-list">' + sinceHtml(ch) + (rows || '<div class="m-empty">Nothing shortlisted yet.<br>Open a condo, go to For sale and tap ☆ Shortlist on a unit.</div>') + '</div>' +
+      (total ? '<div class="m-hint">' + (pool.length > 1 ? 'Tick condos to compare · ' : '') + 'swipe a unit left to remove</div>' : '') +
       (mSel.length >= 2 ? '<button type="button" class="m-fab" data-mcmp>' + mIcon('cols') + 'Compare ' + mSel.length + '</button>' : '');
   }
   // Swipe a shortlist row left to show Remove (like Mail)
@@ -3538,7 +3676,13 @@
       mSaveSel(); return mRender();
     }
     if (sinceClick(b)) return;
-    if (b.dataset.mrem) { var r = b.dataset.mrem; mSel = mSel.filter(function (x) { return x !== r; }); mSaveSel(); return toggleShort(r); }
+    if (b.dataset.mrem) return toggleShort(b.dataset.mrem);
+    if (b.dataset.munit) {
+      if (mSwipeRows.justSwiped && Date.now() - mSwipeRows.justSwiped < 400) return;
+      var su = b.closest('.m-swipe');
+      if (su && su.classList.contains('open')) { su.classList.remove('open'); return; }
+      return openUnit(b.dataset.munit);
+    }
     if (b.dataset.open) {
       if (mSwipeRows.justSwiped && Date.now() - mSwipeRows.justSwiped < 400) return;
       var sw = b.closest('.m-swipe');
@@ -3742,7 +3886,9 @@
       var sb = e.target.closest('button[data-since], button[data-since-ok]');
       if (sb && sinceClick(sb)) return;
       var u = e.target.closest('button[data-unstar]');
-      if (u) return toggleShort(u.dataset.unstar);           // a condo with nothing for sale any more
+      if (u) return toggleShort(u.dataset.unstar);
+      var su = e.target.closest('button[data-sunit]');
+      if (su) return openUnit(su.dataset.sunit);
       var b = e.target.closest('button[data-condo]');
       if (b) openCondo(b.dataset.condo, { fly: true });
     });
