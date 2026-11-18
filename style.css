@@ -1096,11 +1096,15 @@ html.m #detail.m-full .m-onmap ~ .card-head { padding-top: 46px; }
 .ustar { flex: none; height: 28px; padding: 0 11px; border-radius: 14px; border: 1px solid var(--line); background: #fff;
   font: 600 12px Urbanist, Inter, system-ui, sans-serif; color: var(--ink); cursor: pointer; white-space: nowrap; }
 .ustar[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-.box.unit.mine { box-shadow: inset 0 0 0 1.5px var(--accent); }   /* the listing opened from the shortlist */
+/* the listing opened from the shortlist: a soft sage fill, no outline (18 Nov, Daniel: "the design language doesn't use
+   outline") — the same sage as its row on the shortlist */
+.box.unit.mine { background: rgba(220, 233, 223, 0.95); }
 .box.starhint { background: #fff8ec; border-color: #f3dcbe; font-size: 13px; line-height: 1.45; color: var(--ink); text-wrap: pretty; }
 /* Shortlist: one card per condo, its saved units under it (17 Nov) */
 .sgroup { border: 1px solid var(--edge); border-radius: 18px; background: var(--panel); overflow: hidden; flex: none; }
-.sgroup.on { box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* 17 Nov (Daniel chose D): no outline round the open condo's group; the listing open on the right gets a soft sage
+   fill instead — the same sage as the map's highlight. No bar, no outline (18 Nov) */
+.su.here, .su.here:hover { background: rgba(76, 116, 88, 0.16); }   /* a fill, never an outline (Daniel, 18 Nov) */
 .sg-head { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 10px 12px;
   border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
 /* 17 Nov (Daniel: "make sure the hover effect is apply on the button remove"): the whole unit row lights up,

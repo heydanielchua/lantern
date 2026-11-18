@@ -2630,17 +2630,19 @@
     openCondo(u.condo, { fly: true, full: !!M, tab: 'sale' });
     S.panel.focus = k;                                    // ring the saved listing on For sale and bring it into view
     renderPanel();
+    renderShortlist();                                    // ...and tint its row on the shortlist (17 Nov, D)
     setTimeout(function () { var e = $('detail').querySelector('.unit.mine'); if (e) e.scrollIntoView({ block: 'center' }); }, 60);
   }
   function shortGroupHtml(g) {
-    var c = g.c, a = (c && S.areas[c.area]) || {}, on = S.panel && S.panel.condo === g.ck, name = c ? c.name : keyName(g.ck);
+    var c = g.c, a = (c && S.areas[c.area]) || {}, name = c ? c.name : keyName(g.ck);
     var sub = c ? [a.name, c.district].filter(Boolean).join(' · ') + (c.gone ? ' · ' + goneWhy(c).tag : '') : 'Not in the current listings';
     var inner = '<span class="ic" aria-hidden="true">★</span><span class="sg-nm"><strong class="nm-1" title="' + esc(name) + '">' + esc(name) + '</strong>' +
       '<small>' + esc(sub) + '</small></span>' + (c && !c.gone ? scoreTag(c) : '<span></span>');
     var head = c ? '<button type="button" class="sg-head" data-condo="' + esc(g.ck) + '">' + inner + '</button>' : '<div class="sg-head">' + inner + '</div>';
-    return '<div class="sgroup' + (on ? ' on' : '') + (c && !c.gone ? '' : ' gone') + '">' + head + g.units.map(function (x) {
+    return '<div class="sgroup' + (c && !c.gone ? '' : ' gone') + '">' + head + g.units.map(function (x) {
       var d = unitDrop(x), live = x.live.length;
-      return '<div class="su' + (live ? '' : ' gone') + '"><button type="button" class="su-main" data-sunit="' + esc(x.k) + '"' + (x.c ? '' : ' disabled') + '>' +
+      var here = S.panel && S.panel.condo === g.ck && S.panel.focus === x.k;   // the listing open on the right
+      return '<div class="su' + (live ? '' : ' gone') + (here ? ' here' : '') + '"><button type="button" class="su-main" data-sunit="' + esc(x.k) + '"' + (x.c ? '' : ' disabled') + '>' +
         '<span class="su-l"><strong>' + esc(unitLabel(x.u)) + '</strong><small>' + esc(unitSub(x)) + '</small>' +
         (d ? '<span class="chip down sdrop" title="' + esc(dropTitle(d)) + '">' + esc(dropText(d)) + '</span>' : '') + '</span>' +
         (live ? '<span class="price">' + money(x.live[0].price) + '</span>' : '') + '</button>' +
